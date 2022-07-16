@@ -19,7 +19,7 @@
 import unittest
 from pathlib import Path
 
-from csv_transformer import main
+from csv_transformer.transformation import *
 
 
 class CSVTransformerTestCase(unittest.TestCase):

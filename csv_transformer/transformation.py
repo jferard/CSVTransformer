@@ -25,7 +25,7 @@ import statistics
 from typing import (Union, Mapping, List, Callable, Any, cast, Dict, Iterable,
                     Optional, Iterator)
 
-from simple_eval import eval_expr, tokenize_expr, shunting_yard, evaluate
+from csv_transformer.simple_eval import eval_expr, tokenize_expr, shunting_yard, evaluate
 
 StrRow = Mapping[str, str]
 TypedRow = Mapping[str, Any]

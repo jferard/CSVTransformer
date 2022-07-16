@@ -19,8 +19,7 @@
 import unittest
 from tokenize import TokenInfo
 
-from simple_eval import *
-from simple_eval import evaluate
+from csv_transformer.simple_eval import *
 
 
 class TokenizeTestCase(unittest.TestCase):
