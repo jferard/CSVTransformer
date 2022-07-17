@@ -26,6 +26,9 @@ from typing import Any, Callable, Iterator, List, Mapping, Optional
 
 
 class Literal:
+    """
+    A literal: any value
+    """
     def __init__(self, value: Any):
         self.value = value
 
@@ -37,6 +40,9 @@ class Literal:
 
 
 class Identifier:
+    """
+    An identifier
+    """
     def __init__(self, name: str):
         self.name = name
 
@@ -48,6 +54,9 @@ class Identifier:
 
 
 class Function:
+    """
+    A function
+    """
     def __init__(self, name: str, func: Callable):
         self.name = name
         self.func = func
@@ -62,6 +71,9 @@ class Function:
 
 
 class BinOp:
+    """
+    A binary operator
+    """
     def __init__(self, name: str, precedence: int, left_associative: bool,
                  func: Optional[Callable]):
         self.name = name
@@ -74,6 +86,7 @@ class BinOp:
 
     def __eq__(self, other):
         return isinstance(other, BinOp) and self.name == other.name
+
 
 OPEN_PAREN = "("
 COMMA = ","
