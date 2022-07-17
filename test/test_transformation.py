@@ -19,14 +19,16 @@
 import unittest
 from pathlib import Path
 
+FIXTURE_PATH = Path(__file__).parent / "fixture"
+
 from csv_transformer.transformation import *
 
 
 class CSVTransformerTestCase(unittest.TestCase):
     def test_transform(self):
-        csv_in = {"encoding": "utf-8", "path": Path(
-            "fixture/StockEtablissementLiensSuccession_utf8.csv")}
-        csv_out = {"path": Path("fixture/test.csv")}
+        csv_in = {"encoding": "utf-8", "path": (
+                FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
+        csv_out = {"path": FIXTURE_PATH / "test.csv"}
         transformation_dict = {
             "filter": "date_lien_succ > date('2000-01-01')",
             "cols": {
