@@ -22,6 +22,44 @@ from tokenize import TokenInfo
 from csv_transformer.simple_eval import *
 
 
+class LiteralTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("Literal('a')", repr(Literal("a")))
+
+    def test_eq(self):
+        self.assertEqual(Literal("a"), Literal("a"))
+        self.assertNotEqual(Literal("a"), Literal("b"))
+        self.assertNotEqual(Literal("a"), object())
+
+
+class IdentifierTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("Identifier('a')", repr(Identifier("a")))
+
+    def test_eq(self):
+        self.assertEqual(Identifier("a"), Identifier("a"))
+        self.assertNotEqual(Identifier("a"), Identifier("b"))
+        self.assertNotEqual(Identifier("a"), object())
+
+
+def _f(x): return x
+
+
+def _g(x): return x
+
+
+class FunctionTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("Function('f')", repr(Function("f", _f)))
+
+    def test_eq(self):
+        self.assertEqual(Function("f", _f), Function("f", _f))
+        self.assertEqual(Function("f", _f), Function("f", _g))
+        self.assertNotEqual(Function("f", _f), Function("g", _f))
+        self.assertNotEqual(Function("f", _f), Function("g", _g))
+        self.assertNotEqual(Function("f", _f), object())
+
+
 class TokenizeTestCase(unittest.TestCase):
     def test_tokenize(self):
         self.assertEqual([TokenInfo(type=ENCODING, string='utf-8',
@@ -130,6 +168,11 @@ class EvalTestCase(unittest.TestCase):
     def test_eval_expr_assoc(self):
         self.assertEqual(2, eval_expr("5-2-1"))
         self.assertEqual(4, eval_expr("16/2/2"))
+
+    def test_eval_expr_unary(self):
+        self.assertEqual(-4, eval_expr("2*(-2)"))
+        self.assertEqual(-4, eval_expr("-2*2"))
+        self.assertEqual(0, eval_expr("-2+2"))
 
     def test_eval_expr(self):
         self.assertEqual(10, eval_expr("5*2"))
