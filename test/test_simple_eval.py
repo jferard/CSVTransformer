@@ -205,6 +205,10 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(10, eval_expr("2*(2+x)", {"x": 3}))
         self.assertEqual(20, eval_expr("2*(2+x)*2", {"x": 3}))
 
+    def test_precedence(self):
+        self.assertEqual(13, eval_expr("3+5*2"))
+        self.assertEqual(13, eval_expr("5*2+3"))
+
 
 if __name__ == '__main__':
     unittest.main()

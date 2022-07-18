@@ -22,7 +22,7 @@ import statistics
 import tokenize
 from io import BytesIO
 from token import ENCODING, NUMBER, STRING, NEWLINE, ENDMARKER, NAME, OP
-from typing import Any, Callable, Iterator, List, Mapping, Optional
+from typing import Any, Callable, Iterator, List, Mapping, Optional, Union
 
 
 class Literal:
@@ -131,21 +131,22 @@ def to_date(v: Any):
         raise ValueError()
 
 
+# see https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 binop_by_name = {
-    "<": BinOp(">", -2, True, operator.lt),
-    "<=": BinOp(">", -2, True, operator.le),
-    "==": BinOp(">", -2, True, operator.eq),
-    ">=": BinOp(">", -2, True, operator.ge),
-    ">": BinOp(">", -2, True, operator.gt),
-    "(": BinOp("(", -1, False, None),
-    ",": BinOp(",", -1, False, None),
-    ")": BinOp(")", -1, False, None),
-    "+": BinOp("+", 0, True, operator.add),
-    "-": BinOp("-", 0, True, lambda a, b: a - b),
-    "/": BinOp("/", 1, True, operator.truediv),
-    "*": BinOp("*", 1, True, operator.mul),
+    "<": BinOp(">", 6, True, operator.lt),
+    "<=": BinOp(">", 6, True, operator.le),
+    "==": BinOp(">", 6, True, operator.eq),
+    ">=": BinOp(">", 6, True, operator.ge),
+    ">": BinOp(">", 6, True, operator.gt),
+    "(": BinOp("(", 15, False, None),
+    ",": BinOp(",", 15, False, None),
+    ")": BinOp(")", 15, False, None),
+    "+": BinOp("+", 4, True, operator.add),
+    "-": BinOp("-", 4, True, lambda a, b: a - b),
+    "/": BinOp("/", 3, True, operator.truediv),
+    "*": BinOp("*", 3, True, operator.mul),
     "^": BinOp("^", 2, False, operator.pow),
-    ".": BinOp(".", 3, False, None),
+    ".": BinOp(".", 1, False, None),
 }
 
 unop_by_name = {
@@ -166,147 +167,184 @@ unop_by_name = {
 
 # adapted from https://stackoverflow.com/a/60958017/6914441
 # and https://softwareengineering.stackexchange.com/a/290975/255475
-def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug=False):
-    assert next(tokens).type == ENCODING
-    operator_stack = []
-    operand_stack = []
-    expect_binop = False
+def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug: bool = False
+                  ) -> List[Union[Literal, Identifier, UnOp, BinOp, Function]]:
+    return ShuntingYard(debug).process(tokens)
 
-    for current_token in tokens:
-        if debug:
-            print("T: {}".format(current_token.string))
-        if current_token.type == NUMBER:
-            if "." in current_token.string:
-                operand_stack.append(Literal(float(current_token.string)))
+
+class ShuntingYard:
+    def __init__(self, debug: bool):
+        self._debug = debug
+        self._operand_stack = []
+        self._operator_stack = []
+        self._expect_binop = False
+
+    def process(self, tokens: Iterator[tokenize.TokenInfo]
+                ) -> List[Union[Literal, Identifier, UnOp, BinOp, Function]]:
+        assert next(tokens).type == ENCODING
+
+        for current_token in tokens:
+            if self._debug:
+                print("T: {}".format(current_token.string))
+
+            # expect binop cases: number, string, identifier or closed parenthese
+            if current_token.type == NUMBER:
+                if "." in current_token.string:
+                    literal = Literal(float(current_token.string))
+                else:
+                    literal = Literal(int(current_token.string))
+                self._operand_stack.append(literal)
+                self._expect_binop = True
+            elif current_token.type == STRING:
+                self._operand_stack.append(Literal(current_token.string[1:-1]))
+                self._expect_binop = True
+            elif self._is_identifier(current_token):
+                self._operand_stack.append(Identifier(current_token.string))
+                self._expect_binop = True
+            elif self._is_close_parenthese(current_token):
+                self._handle_close_parenthese()
+                self._expect_binop = True
+
+            # do not expect binop
+            elif self._is_function(current_token):
+                self._operator_stack.append(unop_by_name[current_token.string])
+                self._operand_stack.append(STOP)  # put the parameters stop
+                self._expect_binop = False
+            elif self._is_open_parenthese(current_token):
+                self._operator_stack.append(
+                    OPEN_PAREN)  # place the parenthese to stop the unstacking
+                self._expect_binop = False
+            elif self._is_comma(current_token):
+                self._handle_comma()
+                self._expect_binop = False
+            elif self._is_op(current_token):
+                self._handle_op(current_token)
+                self._expect_binop = False
+            elif current_token.type == NEWLINE or current_token.type == ENDMARKER:
+                pass
             else:
-                operand_stack.append(Literal(int(current_token.string)))
-            expect_binop = True
-        elif current_token.type == STRING:
-            operand_stack.append(Literal(current_token.string[1:-1]))
-            expect_binop = True
-        elif _is_identifier(current_token):
-            operand_stack.append(Identifier(current_token.string))
-            expect_binop = True
-        elif _is_function(current_token):
-            operator_stack.append(unop_by_name[current_token.string])
-            operand_stack.append(STOP)
-            expect_binop = False
-        elif _is_open_parenthese(current_token):
-            operator_stack.append(OPEN_PAREN)
-            expect_binop = False
-        elif _is_close_parenthese(current_token):
-            # all operand are on the operand stack,
-            # just take the operators before the "("
-            while operand_stack:
-                prev_op = operator_stack.pop()
-                if prev_op == COMMA:  # ignore the commas
-                    continue
-                elif prev_op == OPEN_PAREN:
-                    # this is the good "(":
-                    # all intermediate "(" have been reduced
+                raise ValueError(repr(current_token))
+            if self._debug:
+                print(">>> Opd: {} | Opr: {} | expB2: {}".format(
+                    self._operand_stack, self._operator_stack,
+                    self._expect_binop))
+
+        self._operand_stack.extend(self._operator_stack[::-1])
+        if self._debug:
+            print("T: # | Opd: {} | Opr: [] | expB2: {}".format(
+                self._operand_stack,
+                self._expect_binop))
+        return self._operand_stack
+
+    @staticmethod
+    def _is_close_parenthese(current_token):
+        return current_token.type == OP and current_token.string == ")"
+
+    def _handle_close_parenthese(self):
+        # all operand are on the operand stack,
+        # just take the operators on top of the "("
+        while self._operand_stack:
+            prev_op = self._operator_stack.pop()
+            if prev_op == COMMA:  # ignore the commas
+                continue
+            elif prev_op == OPEN_PAREN:
+                # this is the good "(" because
+                # all intermediate "(" have been reduced
+                break
+            self._operand_stack.append(prev_op)
+        # was it a function call ?
+        if self._operator_stack and isinstance(self._operator_stack[-1],
+                                               Function):
+            self._operand_stack.append(
+                self._operator_stack.pop())  # the function
+
+    @staticmethod
+    def _is_comma(current_token):
+        return current_token.type == OP and current_token.string == ","
+
+    def _handle_comma(self):
+        # end of the parameters: unstack operators on top of the previous comma
+        # = operator of the current parameter
+        if self._operator_stack:
+            prev_op = self._operator_stack[-1]
+            while prev_op != OPEN_PAREN and prev_op != COMMA:
+                self._operand_stack.append(prev_op)
+                self._operator_stack.pop()
+                if not self._operator_stack:
                     break
-                operand_stack.append(prev_op)
-            # was it a function call ?
-            if operator_stack and isinstance(operator_stack[-1], Function):
-                operand_stack.append(operator_stack.pop())  # function name
-            expect_binop = True
-        elif _is_op(current_token):
-            if expect_binop:  # this is a binop
-                cur_binop = binop_by_name[current_token.string]
-                # yield every stacked operator that has a higher precedence
-                if operator_stack:
-                    prev_op = operator_stack[-1]
-                    while prev_op != OPEN_PAREN:
-                        if isinstance(prev_op, (Function, BinOp)):
-                            if prev_op.precedence < cur_binop.precedence:
-                                break
-                            if (cur_binop.precedence == prev_op.precedence
-                                    and not cur_binop.left_associative
-                            ):
-                                break
-                        if prev_op != COMMA:
-                            operand_stack.append(prev_op)
-                        operator_stack.pop()
-                        if not operator_stack:
-                            break
 
-                        prev_op = operator_stack[-1]
-                operator_stack.append(cur_binop)
-            else:
-                cur_unop = unop_by_name[current_token.string]
-                # yield every stacked operator that has a higher precedence,
-                # that is almost nothing
-                if operator_stack:
-                    prev_op = operator_stack[-1]
-                    while prev_op != OPEN_PAREN:
-                        if isinstance(prev_op, (Function, UnOp, BinOp)):
-                            break
-                        if prev_op != COMMA:
-                            operand_stack.append(prev_op)
-                        operator_stack.pop()
-                        if not operator_stack:
-                            break
+                prev_op = self._operator_stack[-1]
+        self._operator_stack.append(COMMA)
 
-                        prev_op = operator_stack[-1]
-                operator_stack.append(cur_unop)
-            expect_binop = False
-        elif _is_comma(current_token):
-            # end of the parameters: unstack operators until the next comma
-            if operator_stack:
-                prev_op = operator_stack[-1]
-                while prev_op != OPEN_PAREN and prev_op != COMMA:
-                    operand_stack.append(prev_op)
-                    operator_stack.pop()
-                    if not operator_stack:
-                        break
+    @staticmethod
+    def _is_op(current_token):
+        return current_token.type == OP and current_token.string not in (
+            "(", ")", ",")
 
-                    prev_op = operator_stack[-1]
-            operator_stack.append(COMMA)
-            expect_binop = False
-        elif current_token.type == NEWLINE or current_token.type == ENDMARKER:
-            pass
+    def _handle_op(self, current_token):
+        if self._expect_binop:  # this is a binop
+            cur_binop = binop_by_name[current_token.string]
+            self._handle_binop(cur_binop)
         else:
-            raise ValueError(repr(current_token))
-        if debug:
-            print(">>> Opd: {} | Opr: {} | expB2: {}".format(
-                operand_stack, operator_stack, expect_binop))
+            cur_unop = unop_by_name[current_token.string]
+            self._handle_unop(cur_unop)
 
-    operand_stack.extend(operator_stack[::-1])
-    if debug:
-        print("T: # | Opd: {} | Opr: [] | expB2: {}".format(operand_stack,
-                                                            expect_binop))
-    return operand_stack
+    def _handle_binop(self, cur_binop):
+        # yield every stacked operator that has a higher precedence
+        if self._operator_stack:
+            prev_op = self._operator_stack[-1]
+            while prev_op != OPEN_PAREN:
+                if (isinstance(prev_op, (Function, BinOp))
+                        and self._has_higher_precedence(cur_binop, prev_op)):
+                    break
+                if prev_op != COMMA:
+                    self._operand_stack.append(prev_op)
+                self._operator_stack.pop()
+                if not self._operator_stack:
+                    break
 
+                prev_op = self._operator_stack[-1]
+        self._operator_stack.append(cur_binop)
 
-def _is_literal(current_token):
-    return current_token.type == NUMBER or current_token.type == STRING
+    def _has_higher_precedence(self, cur_binop, prev_binop):
+        return (cur_binop.precedence < prev_binop.precedence
+                or (cur_binop.precedence == prev_binop.precedence
+                    and not cur_binop.left_associative))
 
+    def _handle_unop(self, cur_unop):
+        # yield every stacked operator that has a higher precedence,
+        # that is almost nothing
+        if self._operator_stack:
+            prev_op = self._operator_stack[-1]
+            while prev_op != OPEN_PAREN:
+                if isinstance(prev_op, (Function, UnOp, BinOp)):
+                    break
+                if prev_op != COMMA:
+                    self._operand_stack.append(prev_op)
+                self._operator_stack.pop()
+                if not self._operator_stack:
+                    break
 
-def _is_identifier(current_token):
-    return (current_token.type == NAME and current_token.string
-            not in unop_by_name)
+                prev_op = self._operator_stack[-1]
+        self._operator_stack.append(cur_unop)
 
+    @staticmethod
+    def _is_literal(current_token):
+        return current_token.type == NUMBER or current_token.type == STRING
 
-def _is_function(current_token):
-    return (current_token.type == NAME and current_token.string
-            in unop_by_name)
+    @staticmethod
+    def _is_identifier(current_token):
+        return (current_token.type == NAME and current_token.string
+                not in unop_by_name)
 
+    @staticmethod
+    def _is_function(current_token):
+        return (current_token.type == NAME and current_token.string
+                in unop_by_name)
 
-def _is_op(current_token):
-    return current_token.type == OP and current_token.string not in (
-        "(", ")", ",")
-
-
-def _is_open_parenthese(current_token):
-    return current_token.type == OP and current_token.string == "("
-
-
-def _is_close_parenthese(current_token):
-    return current_token.type == OP and current_token.string == ")"
-
-
-def _is_comma(current_token):
-    return current_token.type == OP and current_token.string == ","
+    @staticmethod
+    def _is_open_parenthese(current_token):
+        return current_token.type == OP and current_token.string == "("
 
 
 def evaluate(tokens: List[Any],
