@@ -29,6 +29,7 @@ class Literal:
     """
     A literal: any value
     """
+
     def __init__(self, value: Any):
         self.value = value
 
@@ -43,6 +44,7 @@ class Identifier:
     """
     An identifier
     """
+
     def __init__(self, name: str):
         self.name = name
 
@@ -57,6 +59,7 @@ class Function:
     """
     A function
     """
+
     def __init__(self, name: str, func: Callable):
         self.name = name
         self.func = func
@@ -74,6 +77,7 @@ class BinOp:
     """
     A binary operator
     """
+
     def __init__(self, name: str, precedence: int, left_associative: bool,
                  func: Optional[Callable]):
         self.name = name
@@ -86,6 +90,25 @@ class BinOp:
 
     def __eq__(self, other):
         return isinstance(other, BinOp) and self.name == other.name
+
+
+class UnOp:
+    """
+    A unary operator
+    """
+
+    def __init__(self, name: str, precedence: int, prefix: bool,
+                 func: Optional[Callable]):
+        self.name = name
+        self.precedence = precedence
+        self.prefix = prefix
+        self.func = func
+
+    def __repr__(self):
+        return "UnOp({})".format(repr(self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, UnOp) and self.name == other.name
 
 
 OPEN_PAREN = "("
@@ -108,7 +131,7 @@ def to_date(v: Any):
         raise ValueError()
 
 
-table_of_symbols = {
+binop_by_name = {
     "<": BinOp(">", -2, True, operator.lt),
     "<=": BinOp(">", -2, True, operator.le),
     "==": BinOp(">", -2, True, operator.eq),
@@ -117,6 +140,15 @@ table_of_symbols = {
     "(": BinOp("(", -1, False, None),
     ",": BinOp(",", -1, False, None),
     ")": BinOp(")", -1, False, None),
+    "+": BinOp("+", 0, True, operator.add),
+    "-": BinOp("-", 0, True, lambda a, b: a - b),
+    "/": BinOp("/", 1, True, operator.truediv),
+    "*": BinOp("*", 1, True, operator.mul),
+    "^": BinOp("^", 2, False, operator.pow),
+    ".": BinOp(".", 3, False, None),
+}
+
+unop_by_name = {
     "round": Function("round", round),
     "min": Function("min", min),
     "str": Function("str", str),
@@ -127,86 +159,123 @@ table_of_symbols = {
     "date": Function("date", lambda d: to_date(d)),
     "month": Function("month", lambda d: to_date(d).month),
     "day": Function("day", lambda d: to_date(d).day),
-    "+": BinOp("+", 0, True, operator.add),
-    "-": BinOp("-", 0, True, lambda a, b: a - b),
-    "/": BinOp("/", 1, True, operator.truediv),
-    "*": BinOp("*", 1, True, operator.mul),
-    "!": BinOp("!", 2, True, None),
-    "^": BinOp("^", 2, False, operator.pow),
-    ".": BinOp(".", 3, False, None),
+    "-": UnOp("-", 2, True, operator.neg),
+    "!": UnOp("!", 2, True, operator.not_),
 }
 
 
 # adapted from https://stackoverflow.com/a/60958017/6914441
-def shunting_yard(tokens: Iterator[tokenize.TokenInfo]):
+# and https://softwareengineering.stackexchange.com/a/290975/255475
+def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug=False):
     assert next(tokens).type == ENCODING
-    stack = []
-    output = []
+    operator_stack = []
+    operand_stack = []
+    expect_binop = False
 
     for current_token in tokens:
-        # print(current_token.string, "O", output, "S", stack)
+        if debug:
+            print("T: {}".format(current_token.string))
         if current_token.type == NUMBER:
             if "." in current_token.string:
-                output.append(Literal(float(current_token.string)))
+                operand_stack.append(Literal(float(current_token.string)))
             else:
-                output.append(Literal(int(current_token.string)))
+                operand_stack.append(Literal(int(current_token.string)))
+            expect_binop = True
         elif current_token.type == STRING:
-            output.append(Literal(current_token.string[1:-1]))
+            operand_stack.append(Literal(current_token.string[1:-1]))
+            expect_binop = True
         elif _is_identifier(current_token):
-            output.append(Identifier(current_token.string))
+            operand_stack.append(Identifier(current_token.string))
+            expect_binop = True
         elif _is_function(current_token):
-            stack.append(table_of_symbols[current_token.string])
-            output.append(STOP)
+            operator_stack.append(unop_by_name[current_token.string])
+            operand_stack.append(STOP)
+            expect_binop = False
         elif _is_open_parenthese(current_token):
-            stack.append(OPEN_PAREN)
+            operator_stack.append(OPEN_PAREN)
+            expect_binop = False
         elif _is_close_parenthese(current_token):
-            prev_op = stack.pop()
-            while prev_op != OPEN_PAREN:
-                if prev_op != COMMA:
-                    output.append(prev_op)
-                if stack:
-                    prev_op = stack.pop()
-                else:
+            # all operand are on the operand stack,
+            # just take the operators before the "("
+            while operand_stack:
+                prev_op = operator_stack.pop()
+                if prev_op == COMMA:  # ignore the commas
+                    continue
+                elif prev_op == OPEN_PAREN:
+                    # this is the good "(":
+                    # all intermediate "(" have been reduced
                     break
-            if stack and isinstance(stack[-1], Function):
-                output.append(stack.pop())  # function name
+                operand_stack.append(prev_op)
+            # was it a function call ?
+            if operator_stack and isinstance(operator_stack[-1], Function):
+                operand_stack.append(operator_stack.pop())  # function name
+            expect_binop = True
+        elif _is_op(current_token):
+            if expect_binop:  # this is a binop
+                cur_binop = binop_by_name[current_token.string]
+                # yield every stacked operator that has a higher precedence
+                if operator_stack:
+                    prev_op = operator_stack[-1]
+                    while prev_op != OPEN_PAREN:
+                        if isinstance(prev_op, (Function, BinOp)):
+                            if prev_op.precedence < cur_binop.precedence:
+                                break
+                            if (cur_binop.precedence == prev_op.precedence
+                                    and not cur_binop.left_associative
+                            ):
+                                break
+                        if prev_op != COMMA:
+                            operand_stack.append(prev_op)
+                        operator_stack.pop()
+                        if not operator_stack:
+                            break
 
-        elif _is_binop(current_token):
-            bin_op = table_of_symbols[current_token.string]
-            if stack:
-                prev_op = stack[-1]
-                while prev_op != OPEN_PAREN and (
-                        not (isinstance(prev_op, (Function, BinOp)))
-                        or prev_op.precedence > bin_op.precedence
-                        or (prev_op.precedence == bin_op.precedence
-                            and bin_op.left_associative)
-                ):
-                    if prev_op != COMMA:
-                        output.append(prev_op)
-                    stack.pop()
-                    if not stack:
-                        break
+                        prev_op = operator_stack[-1]
+                operator_stack.append(cur_binop)
+            else:
+                cur_unop = unop_by_name[current_token.string]
+                # yield every stacked operator that has a higher precedence,
+                # that is almost nothing
+                if operator_stack:
+                    prev_op = operator_stack[-1]
+                    while prev_op != OPEN_PAREN:
+                        if isinstance(prev_op, (Function, UnOp, BinOp)):
+                            break
+                        if prev_op != COMMA:
+                            operand_stack.append(prev_op)
+                        operator_stack.pop()
+                        if not operator_stack:
+                            break
 
-                    prev_op = stack[-1]
-            stack.append(bin_op)
+                        prev_op = operator_stack[-1]
+                operator_stack.append(cur_unop)
+            expect_binop = False
         elif _is_comma(current_token):
-            if stack:
-                prev_op = stack[-1]
+            # end of the parameters: unstack operators until the next comma
+            if operator_stack:
+                prev_op = operator_stack[-1]
                 while prev_op != OPEN_PAREN and prev_op != COMMA:
-                    output.append(prev_op)
-                    stack.pop()
-                    if not stack:
+                    operand_stack.append(prev_op)
+                    operator_stack.pop()
+                    if not operator_stack:
                         break
 
-                    prev_op = stack[-1]
-            stack.append(COMMA)
+                    prev_op = operator_stack[-1]
+            operator_stack.append(COMMA)
+            expect_binop = False
         elif current_token.type == NEWLINE or current_token.type == ENDMARKER:
             pass
         else:
             raise ValueError(repr(current_token))
+        if debug:
+            print(">>> Opd: {} | Opr: {} | expB2: {}".format(
+                operand_stack, operator_stack, expect_binop))
 
-    output.extend(stack[::-1])
-    return output
+    operand_stack.extend(operator_stack[::-1])
+    if debug:
+        print("T: # | Opd: {} | Opr: [] | expB2: {}".format(operand_stack,
+                                                            expect_binop))
+    return operand_stack
 
 
 def _is_literal(current_token):
@@ -215,15 +284,15 @@ def _is_literal(current_token):
 
 def _is_identifier(current_token):
     return (current_token.type == NAME and current_token.string
-            not in table_of_symbols)
+            not in unop_by_name)
 
 
 def _is_function(current_token):
     return (current_token.type == NAME and current_token.string
-            in table_of_symbols)
+            in unop_by_name)
 
 
-def _is_binop(current_token):
+def _is_op(current_token):
     return current_token.type == OP and current_token.string not in (
         "(", ")", ",")
 
@@ -252,6 +321,9 @@ def evaluate(tokens: List[Any],
             second = stack.pop()
             first = stack.pop()
             stack.append(token.func(first, second))
+        elif isinstance(token, UnOp):
+            arg = stack.pop()
+            stack.append(token.func(arg))
         elif isinstance(token, Function):
             args = []
             y = stack.pop()
@@ -266,7 +338,12 @@ def evaluate(tokens: List[Any],
     return stack[0]
 
 
-def eval_expr(s: str, value_by_name: Optional[Mapping[str, Any]] = None) -> Any:
+def eval_expr(s: str, value_by_name: Optional[Mapping[str, Any]] = None,
+              debug=False) -> Any:
     tokens = tokenize_expr(s)
-    tokens = shunting_yard(tokens)
+    if debug:
+        tokens = list(tokens)
+        print("Ts: {}".format(tokens))
+        tokens = iter(tokens)
+    tokens = shunting_yard(tokens, debug)
     return evaluate(tokens, value_by_name)

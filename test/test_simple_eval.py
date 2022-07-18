@@ -61,46 +61,45 @@ class FunctionTestCase(unittest.TestCase):
 
 
 class TokenizeTestCase(unittest.TestCase):
-    def test_tokenize(self):
-        self.assertEqual([TokenInfo(type=ENCODING, string='utf-8',
-                                    start=(0, 0), end=(0, 0), line=''),
-                          TokenInfo(type=NAME, string='it', start=(1, 0),
-                                    end=(1, 2), line='it.year > 2000'),
-                          TokenInfo(type=OP, string='.', start=(1, 2),
-                                    end=(1, 3), line='it.year > 2000'),
-                          TokenInfo(type=NAME, string='year', start=(1, 3),
-                                    end=(1, 7), line='it.year > 2000'),
-                          TokenInfo(type=OP, string='>', start=(1, 8),
-                                    end=(1, 9), line='it.year > 2000'),
-                          TokenInfo(type=NUMBER, string='2000',
-                                    start=(1, 10), end=(1, 14),
-                                    line='it.year > 2000'),
-                          TokenInfo(type=NEWLINE, string='', start=(1, 14),
-                                    end=(1, 15), line=''),
-                          TokenInfo(type=ENDMARKER, string='', start=(2, 0),
-                                    end=(2, 0), line='')],
-                         list(tokenize_expr("it.year > 2000")))
+    TOKEN_INFO_ENC = TokenInfo(ENCODING, 'utf-8', (0, 0), (0, 0), '')
+    TOKEN_INFO_END_MARKER = TokenInfo(ENDMARKER, '', (2, 0), (2, 0), '')
 
-    def test_tokenize2(self):
+    def test_tokenize_field(self):
         self.assertEqual([
-            TokenInfo(type=ENCODING, string='utf-8', start=(0, 0),
-                      end=(0, 0), line=''),
-            TokenInfo(type=NAME, string='f', start=(1, 0), end=(1, 1),
-                      line='f(a, 2)'),
-            TokenInfo(type=OP, string='(', start=(1, 1), end=(1, 2),
-                      line='f(a, 2)'),
-            TokenInfo(type=NAME, string='a', start=(1, 2), end=(1, 3),
-                      line='f(a, 2)'),
-            TokenInfo(type=OP, string=',', start=(1, 3), end=(1, 4),
-                      line='f(a, 2)'),
-            TokenInfo(type=NUMBER, string='2', start=(1, 5), end=(1, 6),
-                      line='f(a, 2)'),
-            TokenInfo(type=OP, string=')', start=(1, 6), end=(1, 7),
-                      line='f(a, 2)'),
-            TokenInfo(type=NEWLINE, string='', start=(1, 7), end=(1, 8),
-                      line=''),
-            TokenInfo(type=ENDMARKER, string='', start=(2, 0), end=(2, 0),
-                      line='')
+            self.TOKEN_INFO_ENC,
+            TokenInfo(NAME, 'it', (1, 0), (1, 2), 'it.year > 2000'),
+            TokenInfo(OP, '.', (1, 2), (1, 3), 'it.year > 2000'),
+            TokenInfo(NAME, 'year', (1, 3), (1, 7), 'it.year > 2000'),
+            TokenInfo(OP, '>', (1, 8), (1, 9), 'it.year > 2000'),
+            TokenInfo(NUMBER, '2000', (1, 10), (1, 14), 'it.year > 2000'),
+            TokenInfo(NEWLINE, '', (1, 14), (1, 15), ''),
+            self.TOKEN_INFO_END_MARKER
+        ], list(tokenize_expr("it.year > 2000")))
+
+    def test_tokenize_neg(self):
+        self.assertEqual([
+            self.TOKEN_INFO_ENC,
+            TokenInfo(NAME, 'it', (1, 0), (1, 2), 'it.year > -2000'),
+            TokenInfo(OP, '.', (1, 2), (1, 3), 'it.year > -2000'),
+            TokenInfo(NAME, 'year', (1, 3), (1, 7), 'it.year > -2000'),
+            TokenInfo(OP, '>', (1, 8), (1, 9), 'it.year > -2000'),
+            TokenInfo(OP, '-', (1, 10), (1, 11), 'it.year > -2000'),
+            TokenInfo(NUMBER, '2000', (1, 11), (1, 15), 'it.year > -2000'),
+            TokenInfo(NEWLINE, '', (1, 15), (1, 16), ''),
+            self.TOKEN_INFO_END_MARKER
+        ], list(tokenize_expr("it.year > -2000")))
+
+    def test_tokenize_function(self):
+        self.assertEqual([
+            self.TOKEN_INFO_ENC,
+            TokenInfo(NAME, 'f', (1, 0), (1, 1), 'f(a, 2)'),
+            TokenInfo(OP, '(', (1, 1), (1, 2), 'f(a, 2)'),
+            TokenInfo(NAME, 'a', (1, 2), (1, 3), 'f(a, 2)'),
+            TokenInfo(OP, ',', (1, 3), (1, 4), 'f(a, 2)'),
+            TokenInfo(NUMBER, '2', (1, 5), (1, 6), 'f(a, 2)'),
+            TokenInfo(OP, ')', (1, 6), (1, 7), 'f(a, 2)'),
+            TokenInfo(NEWLINE, '', (1, 7), (1, 8), ''),
+            self.TOKEN_INFO_END_MARKER
         ], list(tokenize_expr("f(a, 2)")))
 
 
@@ -171,8 +170,16 @@ class EvalTestCase(unittest.TestCase):
 
     def test_eval_expr_unary(self):
         self.assertEqual(-4, eval_expr("2*(-2)"))
+        self.assertEqual(4, eval_expr("2 + -round(-2.5)", debug=True))
+        self.assertEqual(-2, eval_expr("2 + -round(1.3+2.5)", debug=True))
         self.assertEqual(-4, eval_expr("-2*2"))
+        self.assertEqual(-4, eval_expr("2*-2"))
         self.assertEqual(0, eval_expr("-2+2"))
+        self.assertEqual(2, eval_expr("--2"))
+        self.assertEqual(-2, eval_expr("-(-2+4)"))
+        self.assertEqual(1, eval_expr("2--2 - 3", debug=True))
+        self.assertEqual("2-8", eval_expr("format('{}{}', -round(-2.5), -2*4)", debug=True))
+        self.assertEqual("2.5-8", eval_expr("format('{}{}', -(-2.5), -2*4)", debug=True))
 
     def test_eval_expr(self):
         self.assertEqual(10, eval_expr("5*2"))
