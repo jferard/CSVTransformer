@@ -20,6 +20,7 @@ import datetime as dt
 import operator
 import statistics
 import tokenize
+from abc import ABC
 from io import BytesIO
 from token import ENCODING, NUMBER, STRING, NEWLINE, ENDMARKER, NAME, OP
 from typing import Any, Callable, Iterator, List, Mapping, Optional, Union
@@ -55,15 +56,20 @@ class Identifier:
         return isinstance(other, Identifier) and self.name == other.name
 
 
-class Function:
+class Op(ABC):
+    def __init__(self, name: str, precedence: int, func: Callable):
+        self.name = name
+        self.precedence = precedence
+        self.func = func
+
+
+class Function(Op):
     """
     A function
     """
 
     def __init__(self, name: str, func: Callable):
-        self.name = name
-        self.func = func
-        self.precedence = -1
+        Op.__init__(self, name, 1, func)
         self.left_associative = False
 
     def __repr__(self):
@@ -73,17 +79,15 @@ class Function:
         return isinstance(other, Function) and self.name == other.name
 
 
-class BinOp:
+class BinOp(Op):
     """
     A binary operator
     """
 
     def __init__(self, name: str, precedence: int, left_associative: bool,
                  func: Optional[Callable]):
-        self.name = name
-        self.precedence = precedence
+        Op.__init__(self, name, precedence, func)
         self.left_associative = left_associative
-        self.func = func
 
     def __repr__(self):
         return "BinOp({})".format(repr(self.name))
@@ -92,17 +96,15 @@ class BinOp:
         return isinstance(other, BinOp) and self.name == other.name
 
 
-class UnOp:
+class UnOp(Op):
     """
     A unary operator
     """
 
     def __init__(self, name: str, precedence: int, prefix: bool,
                  func: Optional[Callable]):
-        self.name = name
-        self.precedence = precedence
+        Op.__init__(self, name, precedence, func)
         self.prefix = prefix
-        self.func = func
 
     def __repr__(self):
         return "UnOp({})".format(repr(self.name))
