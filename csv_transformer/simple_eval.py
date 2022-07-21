@@ -57,9 +57,11 @@ class Identifier:
 
 
 class Op(ABC):
-    def __init__(self, name: str, precedence: int, func: Callable):
+    def __init__(self, name: str, precedence: int, left_associative,
+                 func: Callable):
         self.name = name
         self.precedence = precedence
+        self.left_associative = left_associative
         self.func = func
 
 
@@ -69,8 +71,7 @@ class Function(Op):
     """
 
     def __init__(self, name: str, func: Callable):
-        Op.__init__(self, name, 1, func)
-        self.left_associative = False
+        Op.__init__(self, name, 1, False, func)
 
     def __repr__(self):
         return "Function({})".format(repr(self.name))
@@ -83,12 +84,6 @@ class BinOp(Op):
     """
     A binary operator
     """
-
-    def __init__(self, name: str, precedence: int, left_associative: bool,
-                 func: Optional[Callable]):
-        Op.__init__(self, name, precedence, func)
-        self.left_associative = left_associative
-
     def __repr__(self):
         return "BinOp({})".format(repr(self.name))
 
@@ -96,21 +91,26 @@ class BinOp(Op):
         return isinstance(other, BinOp) and self.name == other.name
 
 
-class UnOp(Op):
+class PrefixUnOp(Op):
     """
     A unary operator
     """
-
-    def __init__(self, name: str, precedence: int, prefix: bool,
-                 func: Optional[Callable]):
-        Op.__init__(self, name, precedence, func)
-        self.prefix = prefix
-
     def __repr__(self):
-        return "UnOp({})".format(repr(self.name))
+        return "PrefixUnOp({})".format(repr(self.name))
 
     def __eq__(self, other):
-        return isinstance(other, UnOp) and self.name == other.name
+        return isinstance(other, PrefixUnOp) and self.name == other.name
+
+
+class InfixUnOp(Op):
+    """
+    A unary operator
+    """
+    def __repr__(self):
+        return "InfixUnOp({})".format(repr(self.name))
+
+    def __eq__(self, other):
+        return isinstance(other, PrefixUnOp) and self.name == other.name
 
 
 OPEN_PAREN = "("
@@ -135,6 +135,12 @@ def to_date(v: Any):
 
 # see https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 binop_by_name = {
+    ".": BinOp(".", 1, False, None),
+    "^": BinOp("^", 2, False, operator.pow),
+    "*": BinOp("*", 3, True, operator.mul),
+    "/": BinOp("/", 3, True, operator.truediv),
+    "+": BinOp("+", 4, True, operator.add),
+    "-": BinOp("-", 4, True, lambda a, b: a - b),
     "<": BinOp(">", 6, True, operator.lt),
     "<=": BinOp(">", 6, True, operator.le),
     "==": BinOp(">", 6, True, operator.eq),
@@ -143,15 +149,11 @@ binop_by_name = {
     "(": BinOp("(", 15, False, None),
     ",": BinOp(",", 15, False, None),
     ")": BinOp(")", 15, False, None),
-    "+": BinOp("+", 4, True, operator.add),
-    "-": BinOp("-", 4, True, lambda a, b: a - b),
-    "/": BinOp("/", 3, True, operator.truediv),
-    "*": BinOp("*", 3, True, operator.mul),
-    "^": BinOp("^", 2, False, operator.pow),
-    ".": BinOp(".", 1, False, None),
 }
 
-unop_by_name = {
+infix_unop_by_name = {}
+
+prefix_unop_by_name = {
     "round": Function("round", round),
     "min": Function("min", min),
     "str": Function("str", str),
@@ -162,15 +164,15 @@ unop_by_name = {
     "date": Function("date", lambda d: to_date(d)),
     "month": Function("month", lambda d: to_date(d).month),
     "day": Function("day", lambda d: to_date(d).day),
-    "-": UnOp("-", 2, True, operator.neg),
-    "!": UnOp("!", 2, True, operator.not_),
+    "-": PrefixUnOp("-", 2, False, operator.neg),
+    "!": PrefixUnOp("!", 2, False, operator.not_),
 }
 
 
 # adapted from https://stackoverflow.com/a/60958017/6914441
 # and https://softwareengineering.stackexchange.com/a/290975/255475
 def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug: bool = False
-                  ) -> List[Union[Literal, Identifier, UnOp, BinOp, Function]]:
+                  ) -> List[Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
     return ShuntingYard(debug).process(tokens)
 
 
@@ -182,7 +184,7 @@ class ShuntingYard:
         self._expect_binop = False
 
     def process(self, tokens: Iterator[tokenize.TokenInfo]
-                ) -> List[Union[Literal, Identifier, UnOp, BinOp, Function]]:
+                ) -> List[Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
         assert next(tokens).type == ENCODING
 
         for current_token in tokens:
@@ -209,7 +211,7 @@ class ShuntingYard:
 
             # do not expect binop
             elif self._is_function(current_token):
-                self._operator_stack.append(unop_by_name[current_token.string])
+                self._operator_stack.append(prefix_unop_by_name[current_token.string])
                 self._operand_stack.append(STOP)  # put the parameters stop
                 self._expect_binop = False
             elif self._is_open_parenthese(current_token):
@@ -220,7 +222,8 @@ class ShuntingYard:
                 self._handle_comma()
                 self._expect_binop = False
             elif self._is_op(current_token):
-                self._handle_op(current_token)
+                cur_op = self._get_op(current_token)
+                self._handle_op(cur_op)
                 self._expect_binop = False
             elif current_token.type == NEWLINE or current_token.type == ENDMARKER:
                 pass
@@ -254,11 +257,8 @@ class ShuntingYard:
                 # all intermediate "(" have been reduced
                 break
             self._operand_stack.append(prev_op)
-        # was it a function call ?
-        if self._operator_stack and isinstance(self._operator_stack[-1],
-                                               Function):
-            self._operand_stack.append(
-                self._operator_stack.pop())  # the function
+        # if it a function call, then the function has the highest precedence
+        # and will be yielded next time.
 
     @staticmethod
     def _is_comma(current_token):
@@ -283,21 +283,23 @@ class ShuntingYard:
         return current_token.type == OP and current_token.string not in (
             "(", ")", ",")
 
-    def _handle_op(self, current_token):
-        if self._expect_binop:  # this is a binop
-            cur_binop = binop_by_name[current_token.string]
-            self._handle_binop(cur_binop)
+    def _get_op(self, current_token):
+        if self._expect_binop:  # this is a binop or an infix unop
+            try:
+                cur_op = infix_unop_by_name[current_token.string]
+            except KeyError:
+                cur_op = binop_by_name[current_token.string]
         else:
-            cur_unop = unop_by_name[current_token.string]
-            self._handle_unop(cur_unop)
+            cur_op = prefix_unop_by_name[current_token.string]
+        return cur_op
 
-    def _handle_binop(self, cur_binop):
+    def _handle_op(self, cur_op: Op):
         # yield every stacked operator that has a higher precedence
         if self._operator_stack:
             prev_op = self._operator_stack[-1]
             while prev_op != OPEN_PAREN:
-                if (isinstance(prev_op, (Function, BinOp))
-                        and self._has_higher_precedence(cur_binop, prev_op)):
+                if (isinstance(prev_op, Op)
+                        and self._has_higher_precedence(cur_op, prev_op)):
                     break
                 if prev_op != COMMA:
                     self._operand_stack.append(prev_op)
@@ -306,29 +308,12 @@ class ShuntingYard:
                     break
 
                 prev_op = self._operator_stack[-1]
-        self._operator_stack.append(cur_binop)
+        self._operator_stack.append(cur_op)
 
     def _has_higher_precedence(self, cur_binop, prev_binop):
         return (cur_binop.precedence < prev_binop.precedence
                 or (cur_binop.precedence == prev_binop.precedence
                     and not cur_binop.left_associative))
-
-    def _handle_unop(self, cur_unop):
-        # yield every stacked operator that has a higher precedence,
-        # that is almost nothing
-        if self._operator_stack:
-            prev_op = self._operator_stack[-1]
-            while prev_op != OPEN_PAREN:
-                if isinstance(prev_op, (Function, UnOp, BinOp)):
-                    break
-                if prev_op != COMMA:
-                    self._operand_stack.append(prev_op)
-                self._operator_stack.pop()
-                if not self._operator_stack:
-                    break
-
-                prev_op = self._operator_stack[-1]
-        self._operator_stack.append(cur_unop)
 
     @staticmethod
     def _is_literal(current_token):
@@ -337,12 +322,12 @@ class ShuntingYard:
     @staticmethod
     def _is_identifier(current_token):
         return (current_token.type == NAME and current_token.string
-                not in unop_by_name)
+                not in prefix_unop_by_name)
 
     @staticmethod
     def _is_function(current_token):
         return (current_token.type == NAME and current_token.string
-                in unop_by_name)
+                in prefix_unop_by_name)
 
     @staticmethod
     def _is_open_parenthese(current_token):
@@ -361,7 +346,7 @@ def evaluate(tokens: List[Any],
             second = stack.pop()
             first = stack.pop()
             stack.append(token.func(first, second))
-        elif isinstance(token, UnOp):
+        elif isinstance(token, PrefixUnOp):
             arg = stack.pop()
             stack.append(token.func(arg))
         elif isinstance(token, Function):
