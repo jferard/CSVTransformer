@@ -156,6 +156,7 @@ infix_unop_by_name = {}
 prefix_unop_by_name = {
     "round": Function("round", round),
     "min": Function("min", min),
+    "int": Function("int", int),
     "str": Function("str", str),
     "format": Function("format", str.format),
     "max": Function("max", max),
