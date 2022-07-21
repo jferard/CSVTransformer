@@ -110,7 +110,7 @@ class InfixUnOp(Op):
         return "InfixUnOp({})".format(repr(self.name))
 
     def __eq__(self, other):
-        return isinstance(other, PrefixUnOp) and self.name == other.name
+        return isinstance(other, InfixUnOp) and self.name == other.name
 
 
 OPEN_PAREN = "("
@@ -125,10 +125,10 @@ def tokenize_expr(s: str):
 def to_date(v: Any):
     if isinstance(v, str):
         return dt.date.fromisoformat(v)
-    elif isinstance(v, dt.date):
-        return v
     elif isinstance(v, dt.datetime):
         return v.date()
+    elif isinstance(v, dt.date):
+        return v
     else:
         raise ValueError()
 
@@ -314,10 +314,6 @@ class ShuntingYard:
         return (cur_binop.precedence < prev_binop.precedence
                 or (cur_binop.precedence == prev_binop.precedence
                     and not cur_binop.left_associative))
-
-    @staticmethod
-    def _is_literal(current_token):
-        return current_token.type == NUMBER or current_token.type == STRING
 
     @staticmethod
     def _is_identifier(current_token):

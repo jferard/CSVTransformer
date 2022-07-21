@@ -285,6 +285,6 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         else:
             for row in itertools.islice(reader, 10):
                 row = dict(zip(header, row))
-                row = transformation.transform(row)
+                row = transformation.   transform(row)
                 if row is not None:
                     writer.writerow([row[n] for n in new_header])

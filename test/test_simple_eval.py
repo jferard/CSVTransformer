@@ -20,6 +20,7 @@ import unittest
 from tokenize import TokenInfo
 
 from csv_transformer.simple_eval import *
+import datetime as dt
 
 
 class LiteralTestCase(unittest.TestCase):
@@ -58,6 +59,53 @@ class FunctionTestCase(unittest.TestCase):
         self.assertNotEqual(Function("f", _f), Function("g", _f))
         self.assertNotEqual(Function("f", _f), Function("g", _g))
         self.assertNotEqual(Function("f", _f), object())
+
+
+class BinopTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("BinOp('bof')", repr(BinOp("bof", True, True, _f)))
+
+    def test_eq(self):
+        self.assertEqual(BinOp("bof", True, True, _f), BinOp("bof", True, True, _f))
+        self.assertEqual(BinOp("bof", True, True, _f), BinOp("bof", True, True, _g))
+        self.assertNotEqual(BinOp("bof", True, True, _f), BinOp("bog", True, True, _f))
+        self.assertNotEqual(BinOp("bof", True, True, _f), BinOp("bog", True, True, _g))
+        self.assertNotEqual(BinOp("bof", True, True, _f), object())
+
+
+class PrefixUnOpTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("PrefixUnOp('bof')", repr(PrefixUnOp("bof", True, True, _f)))
+
+    def test_eq(self):
+        self.assertEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bof", True, True, _f))
+        self.assertEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bof", True, True, _g))
+        self.assertNotEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bog", True, True, _f))
+        self.assertNotEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bog", True, True, _g))
+        self.assertNotEqual(PrefixUnOp("bof", True, True, _f), object())
+
+
+class InfixUnOpTestCase(unittest.TestCase):
+    def test_repr(self):
+        self.assertEqual("InfixUnOp('bof')", repr(InfixUnOp("bof", True, True, _f)))
+
+    def test_eq(self):
+        self.assertEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bof", True, True, _f))
+        self.assertEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bof", True, True, _g))
+        self.assertNotEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bog", True, True, _f))
+        self.assertNotEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bog", True, True, _g))
+        self.assertNotEqual(InfixUnOp("bof", True, True, _f), object())
+
+
+class MiscTestCase(unittest.TestCase):
+    def test_to_date(self):
+        self.assertEqual(dt.date(2010, 5, 1), to_date("2010-05-01"))
+        self.assertEqual(dt.date(2010, 5, 1), to_date(dt.date(2010, 5, 1)))
+        self.assertEqual(dt.date(2010, 5, 1), to_date(dt.datetime(2010, 5, 1, 15, 30, 45)))
+        with self.assertRaises(ValueError):
+            to_date("foo")
+        with self.assertRaises(ValueError):
+            to_date(1)
 
 
 class TokenizeTestCase(unittest.TestCase):
@@ -208,6 +256,14 @@ class EvalTestCase(unittest.TestCase):
     def test_precedence(self):
         self.assertEqual(13, eval_expr("3+5*2"))
         self.assertEqual(13, eval_expr("5*2+3"))
+
+    def test_err_eval(self):
+        with self.assertRaises(ValueError):
+            eval_expr(",")
+
+    def test_err_comma(self):
+        with self.assertRaises(ValueError):
+            eval_expr("1+2.5,")
 
 
 if __name__ == '__main__':
