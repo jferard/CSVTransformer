@@ -26,6 +26,10 @@ from csv_transformer.transformation import *
 
 
 class CSVTransformerTestCase(unittest.TestCase):
+    def test_func(self):
+        f = ExpressionParser().parse("it * 2")
+        self.assertEqual(6, f(3))
+
     def test_transform1(self):
         csv_in = {"encoding": "utf-8", "path": (
                 FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
@@ -81,6 +85,19 @@ class CSVTransformerTestCase(unittest.TestCase):
                     "visible": True,
                     "rename": "A",
                     "filter": "int(it) > 2"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_map(self):
+        csv_in_string = "a,b\n1,2\n3,4"
+        csv_out_string = "a,b\r\n2,2\r\n6,4\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a": {
+                    "type": "int",
+                    "map": "it*2"
                 }
             }
         }, csv_in_string, csv_out_string)

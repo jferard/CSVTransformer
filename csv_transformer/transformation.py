@@ -20,12 +20,11 @@ import csv
 import datetime as dt
 import itertools
 import logging
-import re
 import statistics
 from typing import (Union, Mapping, List, Callable, Any, cast, Dict, Iterable,
                     Optional, Iterator)
 
-from csv_transformer.simple_eval import eval_expr, tokenize_expr, shunting_yard, evaluate
+from csv_transformer.simple_eval import tokenize_expr, shunting_yard, evaluate
 
 StrRow = Mapping[str, str]
 TypedRow = Mapping[str, Any]
@@ -52,13 +51,14 @@ JSONValue = Union[
 
 class Transformation:
     def __init__(self, main_filter, invisible_names, col_type_by_name,
-                 col_filter_by_name, col_agg_by_name,
+                 col_filter_by_name, col_map_by_name, col_agg_by_name,
                  col_rename_by_name: Mapping[str, str],
                  col_id_by_name: Mapping[str, str]):
         self._main_filter = main_filter
         self._invisible_names = invisible_names
         self._col_type_by_name = col_type_by_name
         self._col_filter_by_name = col_filter_by_name
+        self._col_map_by_name = col_map_by_name
         self._col_agg_by_name = col_agg_by_name
         self._col_rename_by_name = col_rename_by_name
         self._col_id_by_name = col_id_by_name
@@ -74,7 +74,7 @@ class Transformation:
     def transform(self, row: StrRow) -> Optional[TypedRow]:
         row = self._type_row(row)
         if self._accept(row):
-            return self._rename(row)
+            return self._rename(self._map(row))
         else:
             return None
 
@@ -124,8 +124,15 @@ class Transformation:
                 pass
         return True
 
+    def _map(self, row: TypedRow) -> TypedRow:
+        return {
+            n: self._col_map_by_name.get(n, lambda x: x)(v) for n, v in row.items()
+        }
+
     def _rename(self, row: TypedRow) -> TypedRow:
-        return {self._col_rename_by_name.get(n, n): v for n, v in row.items()}
+        return {
+            self._col_rename_by_name.get(n, n): v for n, v in row.items()
+        }
 
 
 class MainFilterParser:
@@ -144,19 +151,19 @@ class RiskyMainFilterParser:
         return lambda r: eval(main_filter_str, {}, r)
 
 
-class ColFilterParser:
+class ExpressionParser:
     _logger = logging.getLogger(__name__)
 
-    def parse(self, col_filter_str: str) -> Callable[[Any], bool]:
+    def parse(self, col_filter_str: str) -> Callable[[Any], Any]:
         tokens = tokenize_expr(col_filter_str)
         tokens = shunting_yard(tokens)
         return lambda v: evaluate(tokens, {"it": v})
 
 
-class RiskyColFilterParser:
+class RiskyExpressionParser:
     _logger = logging.getLogger(__name__)
 
-    def parse(self, col_filter_str: str) -> Callable[[Any], bool]:
+    def parse(self, col_filter_str: str) -> Callable[[Any], Any]:
         return lambda v: eval(col_filter_str, {}, {"it": v})
 
 
@@ -168,6 +175,7 @@ class TransformationParser:
         self._main_filter = None
         self._col_type_by_name = cast(Dict[str, Callable[[str], Any]], {})
         self._col_filter_by_name = cast(Dict[str, Callable[[Any], bool]], {})
+        self._col_map_by_name = cast(Dict[str, Callable[[Any], Any]], {})
         self._col_agg_by_name = cast(Dict[str, Callable[[List[Any]], Any]], {})
         self._col_rename_by_name = cast(Dict[str, str], {})
         self._col_id_by_name = cast(Dict[str, str], {})
@@ -184,8 +192,8 @@ class TransformationParser:
 
         return Transformation(self._main_filter, self._invisible_names,
                               self._col_type_by_name, self._col_filter_by_name,
-                              self._col_agg_by_name, self._col_rename_by_name,
-                              self._col_id_by_name)
+                              self._col_map_by_name, self._col_agg_by_name,
+                              self._col_rename_by_name, self._col_id_by_name)
 
     def _parse_main_filter(self, main_filter_str: str):
         if self._risky:
@@ -211,6 +219,13 @@ class TransformationParser:
             pass
         else:
             self._parse_col_filter(name, col_filter_str)
+
+        try:
+            col_map_str = json_col["map"]
+        except KeyError:
+            pass
+        else:
+            self._parse_col_map(name, col_map_str)
 
         try:
             col_agg_str = json_col["agg"]
@@ -241,11 +256,19 @@ class TransformationParser:
 
     def _parse_col_filter(self, name: str, col_filter_str: str):
         if self._risky:
-            self._col_filter_by_name[name] = RiskyColFilterParser().parse(
+            self._col_filter_by_name[name] = RiskyExpressionParser().parse(
                 col_filter_str)
         else:
-            self._col_filter_by_name[name] = ColFilterParser().parse(
+            self._col_filter_by_name[name] = ExpressionParser().parse(
                 col_filter_str)
+
+    def _parse_col_map(self, name: str, col_map_str: str):
+        if self._risky:
+            self._col_map_by_name[name] = RiskyExpressionParser().parse(
+                col_map_str)
+        else:
+            self._col_map_by_name[name] = ExpressionParser().parse(
+                col_map_str)
 
     def _parse_col_agg(self, name: str, col_agg_str: str):
         try:
