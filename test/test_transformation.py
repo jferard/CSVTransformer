@@ -89,7 +89,7 @@ class CSVTransformerTestCase(unittest.TestCase):
             }
         }, csv_in_string, csv_out_string)
 
-    def test_map(self):
+    def test_type_map(self):
         csv_in_string = "a,b\n1,2\n3,4"
         csv_out_string = "a,b\r\n2,2\r\n6,4\r\n"
 
@@ -97,6 +97,19 @@ class CSVTransformerTestCase(unittest.TestCase):
             "cols": {
                 "a": {
                     "type": "int",
+                    "map": "it*2"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_type2_map(self):
+        csv_in_string = "a,b\n1,2\n3,4"
+        csv_out_string = "a,b\r\n2.0,2\r\n6.0,4\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a": {
+                    "type": "float(it)",
                     "map": "it*2"
                 }
             }

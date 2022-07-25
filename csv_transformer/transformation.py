@@ -252,23 +252,23 @@ class TransformationParser:
         try:
             self._col_type_by_name[name] = FUNC_BY_TYPE[col_type_str]
         except KeyError:
-            TransformationParser._logger.exception("Type error")
+            parser = self._get_parser()
+            self._col_type_by_name[name] = parser.parse(col_type_str)
 
     def _parse_col_filter(self, name: str, col_filter_str: str):
+        parser = self._get_parser()
+        self._col_filter_by_name[name] = parser.parse(col_filter_str)
+
+    def _get_parser(self):
         if self._risky:
-            self._col_filter_by_name[name] = RiskyExpressionParser().parse(
-                col_filter_str)
+            parser = RiskyExpressionParser()
         else:
-            self._col_filter_by_name[name] = ExpressionParser().parse(
-                col_filter_str)
+            parser = ExpressionParser()
+        return parser
 
     def _parse_col_map(self, name: str, col_map_str: str):
-        if self._risky:
-            self._col_map_by_name[name] = RiskyExpressionParser().parse(
-                col_map_str)
-        else:
-            self._col_map_by_name[name] = ExpressionParser().parse(
-                col_map_str)
+        parser = self._get_parser()
+        self._col_map_by_name[name] = parser.parse(col_map_str)
 
     def _parse_col_agg(self, name: str, col_agg_str: str):
         try:
