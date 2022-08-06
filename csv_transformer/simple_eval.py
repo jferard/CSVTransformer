@@ -141,23 +141,25 @@ def to_date(v: Any):
 
 # see https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 binop_by_name = {
-    ".": BinOp(".", 1, False, None),
-    "^": BinOp("^", 2, False, operator.pow),
-    "*": BinOp("*", 3, True, operator.mul),
-    "/": BinOp("/", 3, True, operator.truediv),
-    "%": BinOp("%", 3, True, operator.mod),
-    "+": BinOp("+", 4, True, operator.add),
-    "-": BinOp("-", 4, True, lambda a, b: a - b),
-    "<": BinOp(">", 6, True, operator.lt),
-    "<=": BinOp(">", 6, True, operator.le),
-    "==": BinOp(">", 6, True, operator.eq),
-    ">=": BinOp(">", 6, True, operator.ge),
-    ">": BinOp(">", 6, True, operator.gt),
-    "&&": BinOp("and", 11, True, operator.and_),
-    "||": BinOp("or", 12, True, operator.or_),
-    "(": BinOp("(", 15, False, None),
-    ",": BinOp(",", 15, False, None),
-    ")": BinOp(")", 15, False, None),
+    f.name: f for f in [
+        BinOp(".", 1, False, None),
+        BinOp("^", 2, False, operator.pow),
+        BinOp("*", 3, True, operator.mul),
+        BinOp("/", 3, True, operator.truediv),
+        BinOp("%", 3, True, operator.mod),
+        BinOp("+", 4, True, operator.add),
+        BinOp("-", 4, True, lambda a, b: a - b),
+        BinOp(">", 6, True, operator.lt),
+        BinOp(">", 6, True, operator.le),
+        BinOp(">", 6, True, operator.eq),
+        BinOp(">", 6, True, operator.ge),
+        BinOp(">", 6, True, operator.gt),
+        BinOp("and", 11, True, operator.and_),
+        BinOp("or", 12, True, operator.or_),
+        BinOp("(", 15, False, None),
+        BinOp(",", 15, False, None),
+        BinOp(")", 15, False, None),
+    ]
 }
 
 infix_unop_by_name = {}
