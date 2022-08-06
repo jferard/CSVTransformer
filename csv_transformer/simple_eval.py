@@ -17,13 +17,16 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime as dt
+import math
 import operator
+import random
 import statistics
 import tokenize
 from abc import ABC
 from io import BytesIO
 from token import ENCODING, NUMBER, STRING, NEWLINE, ENDMARKER, NAME, OP
-from typing import Any, Callable, Iterator, List, Mapping, Optional, Union
+from typing import (Any, Callable, Iterator, List, Mapping, Optional, Union,
+                    Tuple)
 
 
 class Literal:
@@ -84,6 +87,7 @@ class BinOp(Op):
     """
     A binary operator
     """
+
     def __repr__(self):
         return "BinOp({})".format(repr(self.name))
 
@@ -95,6 +99,7 @@ class PrefixUnOp(Op):
     """
     A unary operator
     """
+
     def __repr__(self):
         return "PrefixUnOp({})".format(repr(self.name))
 
@@ -106,6 +111,7 @@ class InfixUnOp(Op):
     """
     A unary operator
     """
+
     def __repr__(self):
         return "InfixUnOp({})".format(repr(self.name))
 
@@ -139,6 +145,7 @@ binop_by_name = {
     "^": BinOp("^", 2, False, operator.pow),
     "*": BinOp("*", 3, True, operator.mul),
     "/": BinOp("/", 3, True, operator.truediv),
+    "%": BinOp("%", 3, True, operator.mod),
     "+": BinOp("+", 4, True, operator.add),
     "-": BinOp("-", 4, True, lambda a, b: a - b),
     "<": BinOp(">", 6, True, operator.lt),
@@ -146,6 +153,8 @@ binop_by_name = {
     "==": BinOp(">", 6, True, operator.eq),
     ">=": BinOp(">", 6, True, operator.ge),
     ">": BinOp(">", 6, True, operator.gt),
+    "&&": BinOp("and", 11, True, operator.and_),
+    "||": BinOp("or", 12, True, operator.or_),
     "(": BinOp("(", 15, False, None),
     ",": BinOp(",", 15, False, None),
     ")": BinOp(")", 15, False, None),
@@ -153,27 +162,101 @@ binop_by_name = {
 
 infix_unop_by_name = {}
 
+
+def add_years(d: dt.date, y: int):
+    return dt.date(d.year + y, d.month, d.day)
+
+
+def add_months(d: dt.date, m: int):
+    return dt.date(d.year, d.month + m, d.day)
+
+
+def age(last: dt.date, first: Optional[dt.date] = None) -> Tuple[int, int, int]:
+    if first is None:
+        first = last
+        last = dt.datetime.now().date()
+    years = last.year - first.year
+    months = last.month - first.month
+    days = last.day - first.day
+    if months < 0:
+        years -= 1
+        months += 12
+    if years < 0:
+        raise ValueError()
+    return (years, months, days)
+
+
 prefix_unop_by_name = {
-    "round": Function("round", round),
-    "min": Function("min", min),
-    "int": Function("int", int),
-    "str": Function("str", str),
-    "format": Function("format", str.format),
-    "max": Function("max", max),
-    "avg": Function("avg", lambda *args: statistics.mean(args)),
-    "year": Function("year", lambda d: to_date(d).year),
-    "date": Function("date", lambda d: to_date(d)),
-    "month": Function("month", lambda d: to_date(d).month),
-    "day": Function("day", lambda d: to_date(d).day),
-    "-": PrefixUnOp("-", 2, False, operator.neg),
-    "!": PrefixUnOp("!", 2, False, operator.not_),
+    f.name: f for f in [
+        Function("int", int),
+        Function("float", float),
+        # https://www.postgresql.org/docs/current/functions-math.html
+        Function("abs", abs),
+        Function("ceil", math.ceil),
+        Function("div", operator.floordiv),
+        Function("exp", math.exp),
+        Function("factorial", math.factorial),
+        Function("floor", math.floor),
+        Function("ln", math.log),
+        Function("log2", math.log2),
+        Function("log10", math.log10),
+        Function("pi", lambda: math.pi),
+        Function("round", round),
+        Function("sign", lambda x: -1 if x < 0 else 1 if x > 0 else 0),
+        Function("sqrt", math.sqrt),
+
+        Function("random", random.random),
+        Function("randint", random.randint),
+
+        Function("cos", math.cos),
+        Function("sin", math.sin),
+        Function("tan", math.tan),
+        Function("acos", math.acos),
+        Function("asin", math.asin),
+        Function("atan", math.atan),
+
+        # https://www.postgresql.org/docs/current/functions-string.html
+        Function("format", str.format),
+        Function("len", len),
+        Function("lower", str.lower),
+        Function("position", str.find),
+        Function("substring", lambda s, *args: s[range(*args)]),
+        Function("str", str),
+        Function("trim", str.strip),
+
+        Function("max", max),
+        Function("min", min),
+        Function("avg", lambda *args: statistics.mean(args)),
+
+        # https://www.postgresql.org/docs/current/functions-datetime.html
+        Function("add_years", lambda d, y: add_years(to_date(d), y)),
+        Function("add_months", lambda d, y: add_months(to_date(d), y)),
+        Function("add_days", lambda d, i: to_date(d) + dt.timedelta(days=i)),
+        Function("add_hours", lambda d, i: to_date(d) + dt.timedelta(hours=i)),
+        Function("add_minutes",
+                 lambda d, i: to_date(d) + dt.timedelta(minutes=i)),
+        Function("add_seconds",
+                 lambda d, i: to_date(d) + dt.timedelta(seconds=i)),
+        Function("age", age),
+        Function("date", to_date),
+        Function("day", lambda d: to_date(d).day),
+        Function("month", lambda d: to_date(d).month),
+        Function("strpdate", dt.datetime.strptime),
+        Function("strfdate", dt.datetime.strftime),
+        Function("year", lambda d: to_date(d).year),
+
+        # ops
+        PrefixUnOp("-", 2, False, operator.neg),
+        PrefixUnOp("!", 2, False, operator.not_),
+    ]
 }
 
 
 # adapted from https://stackoverflow.com/a/60958017/6914441
 # and https://softwareengineering.stackexchange.com/a/290975/255475
 def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug: bool = False
-                  ) -> List[Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
+                  ) -> List[
+    Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
     return ShuntingYard(debug).process(tokens)
 
 
@@ -185,7 +268,8 @@ class ShuntingYard:
         self._expect_binop = False
 
     def process(self, tokens: Iterator[tokenize.TokenInfo]
-                ) -> List[Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
+                ) -> List[
+        Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
         assert next(tokens).type == ENCODING
 
         for current_token in tokens:
@@ -212,7 +296,8 @@ class ShuntingYard:
 
             # do not expect binop
             elif self._is_function(current_token):
-                self._operator_stack.append(prefix_unop_by_name[current_token.string])
+                self._operator_stack.append(
+                    prefix_unop_by_name[current_token.string])
                 self._operand_stack.append(STOP)  # put the parameters stop
                 self._expect_binop = False
             elif self._is_open_parenthese(current_token):

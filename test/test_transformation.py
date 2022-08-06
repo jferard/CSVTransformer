@@ -171,7 +171,8 @@ class CSVTransformerParserTestCase(unittest.TestCase):
             }
         }
         transformation = TransformationParser(False).parse(transformation_dict)
-        self.assertEqual({}, transformation._col_type_by_name)
+        with self.assertRaises(KeyError):
+            transformation._col_type_by_name['a']("2")
 
     def test_err_col_agg(self):
         transformation_dict = {
