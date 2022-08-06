@@ -20,6 +20,7 @@ import datetime as dt
 import math
 import operator
 import random
+import re
 import statistics
 import tokenize
 from abc import ABC
@@ -149,10 +150,10 @@ binop_by_name = {
         BinOp("%", 3, True, operator.mod),
         BinOp("+", 4, True, operator.add),
         BinOp("-", 4, True, lambda a, b: a - b),
-        BinOp(">", 6, True, operator.lt),
-        BinOp(">", 6, True, operator.le),
-        BinOp(">", 6, True, operator.eq),
-        BinOp(">", 6, True, operator.ge),
+        BinOp("<", 6, True, operator.lt),
+        BinOp("<=", 6, True, operator.le),
+        BinOp("==", 6, True, operator.eq),
+        BinOp(">=", 6, True, operator.ge),
         BinOp(">", 6, True, operator.gt),
         BinOp("and", 11, True, operator.and_),
         BinOp("or", 12, True, operator.or_),
@@ -188,10 +189,17 @@ def age(last: dt.date, first: Optional[dt.date] = None) -> Tuple[int, int, int]:
     return (years, months, days)
 
 
+def case(*args):
+    args_count = len(args)
+    assert args_count % 2 == 1
+    for i in range(0, args_count - 2, 2):
+        if args[i]:
+            return args[i+1]
+    return args[args_count-1]
+
+
 prefix_unop_by_name = {
     f.name: f for f in [
-        Function("int", int),
-        Function("float", float),
         # https://www.postgresql.org/docs/current/functions-math.html
         Function("abs", abs),
         Function("ceil", math.ceil),
@@ -223,12 +231,23 @@ prefix_unop_by_name = {
         Function("lower", str.lower),
         Function("position", str.find),
         Function("substring", lambda s, *args: s[range(*args)]),
-        Function("str", str),
         Function("trim", str.strip),
 
         Function("max", max),
         Function("min", min),
         Function("avg", lambda *args: statistics.mean(args)),
+
+        # https://www.postgresql.org/docs/current/functions-matching.html
+        Function("re_match", re.match),
+        Function("re_search", re.search),
+        Function("re_first", lambda p, s: next(re.finditer(p, s), None)),
+
+        # https://www.postgresql.org/docs/current/functions-formatting.html
+        Function("int", int),
+        Function("float", float),
+        Function("strpdate", dt.datetime.strptime),
+        Function("strfdate", dt.datetime.strftime),
+        Function("str", str),
 
         # https://www.postgresql.org/docs/current/functions-datetime.html
         Function("add_years", lambda d, y: add_years(to_date(d), y)),
@@ -243,9 +262,11 @@ prefix_unop_by_name = {
         Function("date", to_date),
         Function("day", lambda d: to_date(d).day),
         Function("month", lambda d: to_date(d).month),
-        Function("strpdate", dt.datetime.strptime),
-        Function("strfdate", dt.datetime.strftime),
         Function("year", lambda d: to_date(d).year),
+
+        # https://www.postgresql.org/docs/current/functions-conditional.html
+        Function("if", lambda x, y, z: y if x else z),
+        Function("case", case),
 
         # ops
         PrefixUnOp("-", 2, False, operator.neg),

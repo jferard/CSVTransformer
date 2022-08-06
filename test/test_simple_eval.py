@@ -253,6 +253,17 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(10, eval_expr("2*(2+x)", {"x": 3}))
         self.assertEqual(20, eval_expr("2*(2+x)*2", {"x": 3}))
 
+    def test_eval_if(self):
+        self.assertEqual(1, eval_expr("if(x > 2, 2, x)", {"x": 1}))
+        self.assertEqual(2, eval_expr("if(x > 2, 2, x)", {"x": 2}))
+        self.assertEqual(2, eval_expr("if(x > 2, 2, x)", {"x": 3}))
+        self.assertEqual(2, eval_expr("if(x > 2, 2, x)", {"x": 4}))
+
+    def test_eval_case(self):
+        self.assertEqual(-2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": -4}))
+        self.assertEqual(1, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 1}))
+        self.assertEqual(2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 4}))
+
     def test_precedence(self):
         self.assertEqual(13, eval_expr("3+5*2"))
         self.assertEqual(13, eval_expr("5*2+3"))
