@@ -140,6 +140,17 @@ def to_date(v: Any):
         raise ValueError()
 
 
+def to_datetime(v: Any):
+    if isinstance(v, str):
+        return dt.datetime.fromisoformat(v)
+    elif isinstance(v, dt.datetime):
+        return v
+    elif isinstance(v, dt.date):
+        return dt.datetime(v.year, v.month, v.day)
+    else:
+        raise ValueError()
+
+
 # see https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 binop_by_name = {
     f.name: f for f in [
@@ -166,12 +177,18 @@ binop_by_name = {
 infix_unop_by_name = {}
 
 
-def add_years(d: dt.date, y: int):
-    return dt.date(d.year + y, d.month, d.day)
+def add_years(d: dt.date, y: int) -> dt.date:
+    if isinstance(d, dt.datetime):
+        return dt.datetime(d.year + y, d.month, d.day)
+    else:
+        return dt.date(d.year + y, d.month, d.day)
 
 
-def add_months(d: dt.date, m: int):
-    return dt.date(d.year, d.month + m, d.day)
+def add_months(d: dt.date, m: int) -> dt.date:
+    if isinstance(d, dt.datetime):
+        return dt.datetime(d.year, d.month + m, d.day)
+    else:
+        return dt.date(d.year, d.month + m, d.day)
 
 
 def age(last: dt.date, first: Optional[dt.date] = None) -> Tuple[int, int, int]:
@@ -229,6 +246,7 @@ prefix_unop_by_name = {
         Function("format", str.format),
         Function("len", len),
         Function("lower", str.lower),
+        Function("upper", str.upper),
         Function("position", str.find),
         Function("substring", lambda s, *args: s[range(*args)]),
         Function("trim", str.strip),
@@ -248,21 +266,25 @@ prefix_unop_by_name = {
         Function("strpdate", dt.datetime.strptime),
         Function("strfdate", dt.datetime.strftime),
         Function("str", str),
+        Function("date", to_date),
 
         # https://www.postgresql.org/docs/current/functions-datetime.html
         Function("add_years", lambda d, y: add_years(to_date(d), y)),
         Function("add_months", lambda d, y: add_months(to_date(d), y)),
         Function("add_days", lambda d, i: to_date(d) + dt.timedelta(days=i)),
-        Function("add_hours", lambda d, i: to_date(d) + dt.timedelta(hours=i)),
+        Function("add_hours", lambda d, i: to_datetime(d) + dt.timedelta(hours=i)),
         Function("add_minutes",
-                 lambda d, i: to_date(d) + dt.timedelta(minutes=i)),
+                 lambda d, i: to_datetime(d) + dt.timedelta(minutes=i)),
         Function("add_seconds",
-                 lambda d, i: to_date(d) + dt.timedelta(seconds=i)),
+                 lambda d, i: to_datetime(d) + dt.timedelta(seconds=i)),
         Function("age", age),
-        Function("date", to_date),
         Function("day", lambda d: to_date(d).day),
         Function("month", lambda d: to_date(d).month),
         Function("year", lambda d: to_date(d).year),
+        Function("hour", lambda d: to_datetime(d).hour),
+        Function("minute", lambda d: to_datetime(d).minute),
+        Function("second", lambda d: to_datetime(d).second),
+
 
         # https://www.postgresql.org/docs/current/functions-conditional.html
         Function("if", lambda x, y, z: y if x else z),

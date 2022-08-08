@@ -29,12 +29,21 @@ from csv_transformer.simple_eval import tokenize_expr, shunting_yard, evaluate
 StrRow = Mapping[str, str]
 TypedRow = Mapping[str, Any]
 
+# https://www.postgresql.org/docs/current/functions-aggregate.html
 FUNC_BY_AGG = {
-    "sum": sum,
+    "all": all,
+    "any": any,
     "count": len,
+    "count_distinct": len,
+    "sum": sum,
     "mean": statistics.mean,
-    "avg": statistics.mean,
-    "median": statistics.median
+    "median": statistics.median,
+    "stdev": statistics.stdev,
+    "pstdev": statistics.pstdev,
+    "variance": statistics.variance,
+    "min": min,
+    "max": max,
+    "string_agg": lambda xs: ", ".join(map(str, xs))
 }
 
 FUNC_BY_TYPE = {

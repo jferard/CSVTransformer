@@ -42,7 +42,7 @@ class CSVTransformerTestCase(unittest.TestCase):
                 },
                 "siretEtablissementSuccesseur": {
                     "type": "int",
-                    "agg": "avg",
+                    "agg": "mean",
                     "rename": "Avg siretSuccesseur"
                 },
                 "dateLienSuccession": {
@@ -121,6 +121,32 @@ class CSVTransformerTestCase(unittest.TestCase):
 
         self._test_transformation({
             "filter": "a > b"
+        }, csv_in_string, csv_out_string)
+
+    def test_string_agg(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "a,b\r\n1,\"2.0, 3.0\"\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "string_agg"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_string_sum(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "a,b\r\n1,5.0\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                }
+            }
         }, csv_in_string, csv_out_string)
 
     def _test_transformation(self, transformation_dict, csv_in_string,

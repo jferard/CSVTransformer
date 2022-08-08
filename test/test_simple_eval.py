@@ -100,6 +100,7 @@ class InfixUnOpTestCase(unittest.TestCase):
 class MiscTestCase(unittest.TestCase):
     def test_to_date(self):
         self.assertEqual(dt.date(2010, 5, 1), to_date("2010-05-01"))
+        self.assertEqual(dt.datetime(2010, 5, 1, 12, 30, 15), to_datetime("2010-05-01 12:30:15"))
         self.assertEqual(dt.date(2010, 5, 1), to_date(dt.date(2010, 5, 1)))
         self.assertEqual(dt.date(2010, 5, 1), to_date(dt.datetime(2010, 5, 1, 15, 30, 45)))
         with self.assertRaises(ValueError):
@@ -234,14 +235,23 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(3, eval_expr("5-2"))
         self.assertEqual(2, eval_expr("min(5, 2, 7, min(3, 8))"))
         self.assertEqual(4.0, eval_expr("avg(5, 2, 5)"))
+        self.assertEqual("03/05/2015",
+                         eval_expr("'03'+'/'+'05'+'/'+'2015'"))
+
+    def test_eval_date(self):
         self.assertEqual(2015, eval_expr("year(x)", {'x': '2015-05-03'}))
         self.assertEqual(2015, eval_expr("year(\"2015-05-03\")"))
         self.assertEqual(2015, eval_expr("year('2015-05-03')"))
-        self.assertEqual("3", eval_expr("str(day('2015-05-03'))"))
-        self.assertEqual("5", eval_expr("str(month('2015-05-03'))"))
-        self.assertEqual("2015", eval_expr("str(year('2015-05-03'))"))
-        self.assertEqual("03/05/2015",
-                         eval_expr("'03'+'/'+'05'+'/'+'2015'"))
+        self.assertEqual(3, eval_expr("day('2015-05-03')"))
+        self.assertEqual(5, eval_expr("month('2015-05-03')"))
+        self.assertEqual(2015, eval_expr("year('2015-05-03')"))
+        self.assertEqual(12, eval_expr("hour('2015-05-03 12:30:15')"))
+        self.assertEqual(30, eval_expr("minute('2015-05-03 12:30:15')"))
+        self.assertEqual(15, eval_expr("second('2015-05-03 12:30:15')"))
+
+    def test_eval_str(self):
+        self.assertEqual("FOO", eval_expr("upper('foo')"))
+        self.assertEqual("foo", eval_expr("trim(' foo  ')"))
 
     def test_eval_2(self):
         self.assertEqual("3/5/2015", eval_expr(
@@ -263,6 +273,14 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(-2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": -4}))
         self.assertEqual(1, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 1}))
         self.assertEqual(2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 4}))
+
+    def test_eval_add_date(self):
+        self.assertEqual(dt.date(2016, 1, 12), eval_expr("add_years(date('2014-01-12'), 2)"))
+        self.assertEqual(dt.date(2014, 3, 12), eval_expr("add_months(date('2014-01-12'), 2)"))
+        self.assertEqual(dt.date(2014, 2, 11), eval_expr("add_days(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 13, 6, 0), eval_expr("add_hours(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 0, 30), eval_expr("add_minutes(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 0, 0, 30), eval_expr("add_seconds(date('2014-01-12'), 30)"))
 
     def test_precedence(self):
         self.assertEqual(13, eval_expr("3+5*2"))
