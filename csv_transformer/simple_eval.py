@@ -62,7 +62,7 @@ class Identifier:
 
 class Op(ABC):
     def __init__(self, name: str, precedence: int, left_associative,
-                 func: Callable):
+                 func: Optional[Callable]):
         self.name = name
         self.precedence = precedence
         self.left_associative = left_associative
@@ -129,7 +129,11 @@ def tokenize_expr(s: str):
     return tokenize.tokenize(BytesIO(s.encode('utf-8')).readline)
 
 
-def to_date(v: Any):
+IntoDate = Union[str, dt.date, dt.datetime]
+IntoDatetime = IntoDate
+
+
+def to_date(v: IntoDate) -> dt.date:
     if isinstance(v, str):
         return dt.date.fromisoformat(v)
     elif isinstance(v, dt.datetime):
@@ -140,7 +144,7 @@ def to_date(v: Any):
         raise ValueError()
 
 
-def to_datetime(v: Any):
+def to_datetime(v: IntoDatetime) -> dt.datetime:
     if isinstance(v, str):
         return dt.datetime.fromisoformat(v)
     elif isinstance(v, dt.datetime):
@@ -149,6 +153,14 @@ def to_datetime(v: Any):
         return dt.datetime(v.year, v.month, v.day)
     else:
         raise ValueError()
+
+
+def to_date_or_datetime(v: IntoDatetime) -> Union[dt.date, dt.datetime]:
+    ret = to_datetime(v)
+    if ret.hour == 0 and ret.minute == 0 and ret.second == 0:
+        return ret.date()
+    else:
+        return ret
 
 
 # see https://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
@@ -179,31 +191,51 @@ infix_unop_by_name = {}
 
 def add_years(d: dt.date, y: int) -> dt.date:
     if isinstance(d, dt.datetime):
-        return dt.datetime(d.year + y, d.month, d.day)
+        return dt.datetime(d.year + y, d.month, d.day, d.hour, d.minute,
+                           d.second)
     else:
         return dt.date(d.year + y, d.month, d.day)
 
 
 def add_months(d: dt.date, m: int) -> dt.date:
     if isinstance(d, dt.datetime):
-        return dt.datetime(d.year, d.month + m, d.day)
+        return dt.datetime(d.year, d.month + m, d.day, d.hour, d.minute,
+                           d.second)
     else:
         return dt.date(d.year, d.month + m, d.day)
 
 
 def age(last: dt.date, first: Optional[dt.date] = None) -> Tuple[int, int, int]:
+    """
+    We have a first date and a second date.
+
+    :param last:
+    :param first:
+    :return:
+    """
     if first is None:
         first = last
         last = dt.datetime.now().date()
     years = last.year - first.year
     months = last.month - first.month
     days = last.day - first.day
+    if days < 0:
+        months -= 1
+        if last.month == 1:
+            middle = dt.date(last.year - 1, 12, first.day)
+        else:
+            middle = dt.date(last.year, last.month - 1, first.day)
+        if isinstance(last, dt.datetime):
+            days = (last.date() - middle).days
+        else:
+            days = (last - middle).days
     if months < 0:
         years -= 1
         months += 12
     if years < 0:
         raise ValueError()
-    return (years, months, days)
+
+    return years, months, days
 
 
 def case(*args):
@@ -211,8 +243,8 @@ def case(*args):
     assert args_count % 2 == 1
     for i in range(0, args_count - 2, 2):
         if args[i]:
-            return args[i+1]
-    return args[args_count-1]
+            return args[i + 1]
+    return args[args_count - 1]
 
 
 prefix_unop_by_name = {
@@ -267,12 +299,17 @@ prefix_unop_by_name = {
         Function("strfdate", dt.datetime.strftime),
         Function("str", str),
         Function("date", to_date),
+        Function("datetime", to_datetime),
 
         # https://www.postgresql.org/docs/current/functions-datetime.html
-        Function("add_years", lambda d, y: add_years(to_date(d), y)),
-        Function("add_months", lambda d, y: add_months(to_date(d), y)),
-        Function("add_days", lambda d, i: to_date(d) + dt.timedelta(days=i)),
-        Function("add_hours", lambda d, i: to_datetime(d) + dt.timedelta(hours=i)),
+        Function("add_years",
+                 lambda d, y: add_years(to_date_or_datetime(d), y)),
+        Function("add_months",
+                 lambda d, y: add_months(to_date_or_datetime(d), y)),
+        Function("add_days",
+                 lambda d, i: to_date_or_datetime(d) + dt.timedelta(days=i)),
+        Function("add_hours",
+                 lambda d, i: to_datetime(d) + dt.timedelta(hours=i)),
         Function("add_minutes",
                  lambda d, i: to_datetime(d) + dt.timedelta(minutes=i)),
         Function("add_seconds",
@@ -284,7 +321,6 @@ prefix_unop_by_name = {
         Function("hour", lambda d: to_datetime(d).hour),
         Function("minute", lambda d: to_datetime(d).minute),
         Function("second", lambda d: to_datetime(d).second),
-
 
         # https://www.postgresql.org/docs/current/functions-conditional.html
         Function("if", lambda x, y, z: y if x else z),
@@ -299,9 +335,10 @@ prefix_unop_by_name = {
 
 # adapted from https://stackoverflow.com/a/60958017/6914441
 # and https://softwareengineering.stackexchange.com/a/290975/255475
-def shunting_yard(tokens: Iterator[tokenize.TokenInfo], debug: bool = False
-                  ) -> List[
-    Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
+def shunting_yard(tokens: Iterator[tokenize.TokenInfo],
+                  debug: bool = False) -> List[Union[Literal, Identifier,
+                                                     PrefixUnOp, BinOp,
+                                                     Function]]:
     return ShuntingYard(debug).process(tokens)
 
 
@@ -313,15 +350,16 @@ class ShuntingYard:
         self._expect_binop = False
 
     def process(self, tokens: Iterator[tokenize.TokenInfo]
-                ) -> List[
-        Union[Literal, Identifier, PrefixUnOp, BinOp, Function]]:
+                ) -> List[Union[Literal, Identifier, PrefixUnOp, BinOp,
+                                Function]]:
         assert next(tokens).type == ENCODING
 
         for current_token in tokens:
             if self._debug:
                 print("T: {}".format(current_token.string))
 
-            # expect binop cases: number, string, identifier or closed parenthese
+            # expect binop cases: number, string, identifier
+            # or closed parenthese
             if current_token.type == NUMBER:
                 if "." in current_token.string:
                     literal = Literal(float(current_token.string))
@@ -356,7 +394,8 @@ class ShuntingYard:
                 cur_op = self._get_op(current_token)
                 self._handle_op(cur_op)
                 self._expect_binop = False
-            elif current_token.type == NEWLINE or current_token.type == ENDMARKER:
+            elif (current_token.type == NEWLINE
+                  or current_token.type == ENDMARKER):
                 pass
             else:
                 raise ValueError(repr(current_token))

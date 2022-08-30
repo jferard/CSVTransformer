@@ -100,7 +100,6 @@ class InfixUnOpTestCase(unittest.TestCase):
 class MiscTestCase(unittest.TestCase):
     def test_to_date(self):
         self.assertEqual(dt.date(2010, 5, 1), to_date("2010-05-01"))
-        self.assertEqual(dt.datetime(2010, 5, 1, 12, 30, 15), to_datetime("2010-05-01 12:30:15"))
         self.assertEqual(dt.date(2010, 5, 1), to_date(dt.date(2010, 5, 1)))
         self.assertEqual(dt.date(2010, 5, 1), to_date(dt.datetime(2010, 5, 1, 15, 30, 45)))
         with self.assertRaises(ValueError):
@@ -108,6 +107,14 @@ class MiscTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             to_date(1)
 
+    def test_to_datetime(self):
+        self.assertEqual(dt.datetime(2010, 5, 1, 12, 30, 15), to_datetime("2010-05-01 12:30:15"))
+        self.assertEqual(dt.datetime(2010, 5, 1, 0, 0), to_datetime(dt.date(2010, 5, 1)))
+        self.assertEqual(dt.datetime(2010, 5, 1, 15, 30, 45), to_datetime(dt.datetime(2010, 5, 1, 15, 30, 45)))
+        with self.assertRaises(ValueError):
+            to_datetime("foo")
+        with self.assertRaises(ValueError):
+            to_datetime(1)
 
 class TokenizeTestCase(unittest.TestCase):
     TOKEN_INFO_ENC = TokenInfo(ENCODING, 'utf-8', (0, 0), (0, 0), '')
@@ -281,6 +288,25 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(dt.datetime(2014, 1, 13, 6, 0), eval_expr("add_hours(date('2014-01-12'), 30)"))
         self.assertEqual(dt.datetime(2014, 1, 12, 0, 30), eval_expr("add_minutes(date('2014-01-12'), 30)"))
         self.assertEqual(dt.datetime(2014, 1, 12, 0, 0, 30), eval_expr("add_seconds(date('2014-01-12'), 30)"))
+
+    def test_eval_add_datetime(self):
+        self.assertEqual(dt.datetime(2016, 1, 12, 12, 30, 21), eval_expr("add_years(datetime('2014-01-12 12:30:21'), 2)"))
+        self.assertEqual(dt.datetime(2014, 3, 12, 12, 30, 21), eval_expr("add_months(datetime('2014-01-12 12:30:21'), 2)"))
+        self.assertEqual(dt.datetime(2014, 2, 11, 12, 30, 21), eval_expr("add_days(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 13, 18, 30, 21), eval_expr("add_hours(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 13, 0, 21), eval_expr("add_minutes(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 12, 30, 51), eval_expr("add_seconds(datetime('2014-01-12 12:30:21'), 30)"))
+
+    def test_eval_age(self):
+        # 2013-01-13 + 1 year = 2014-01-13
+        # 2014-01-13 + 0 month = 2014-01-13
+        self.assertEqual(dt.date(2014, 1, 13)+dt.timedelta(days=30), dt.date(2014, 2, 12))
+        self.assertEqual((1, 0, 30), eval_expr("age(date('2014-02-12'), date('2013-01-13'))"))
+
+        # 1975-04-20 + 38 years = 2013-04-20
+        # 2013-04-20 + 8 months = 2013-12-20
+        self.assertEqual(dt.date(2013, 12, 20)+dt.timedelta(days=23), dt.date(2014, 1, 12))
+        self.assertEqual((38, 8, 23), eval_expr("age(datetime('2014-01-12 12:30:21'), datetime('1975-04-20 13:30:00'))"))
 
     def test_precedence(self):
         self.assertEqual(13, eval_expr("3+5*2"))
