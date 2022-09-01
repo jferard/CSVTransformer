@@ -116,6 +116,7 @@ class MiscTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             to_datetime(1)
 
+
 class TokenizeTestCase(unittest.TestCase):
     TOKEN_INFO_ENC = TokenInfo(ENCODING, 'utf-8', (0, 0), (0, 0), '')
     TOKEN_INFO_END_MARKER = TokenInfo(ENDMARKER, '', (2, 0), (2, 0), '')

@@ -26,42 +26,6 @@ from csv_transformer.transformation import *
 
 
 class CSVTransformerTestCase(unittest.TestCase):
-    def test_func(self):
-        f = ExpressionParser().parse("it * 2")
-        self.assertEqual(6, f(3))
-
-    def test_transform1(self):
-        csv_in = {"encoding": "utf-8", "path": (
-                FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
-        csv_out = {"path": FIXTURE_PATH / "test.csv"}
-        transformation_dict = {
-            "filter": "date_lien_succ > date('2000-01-01')",
-            "cols": {
-                "siretEtablissementPredecesseur": {
-                    "visible": False
-                },
-                "siretEtablissementSuccesseur": {
-                    "type": "int",
-                    "agg": "mean",
-                    "rename": "Avg siretSuccesseur"
-                },
-                "dateLienSuccession": {
-                    "type": "date",
-                    "id": "date_lien_succ",
-                },
-                "transfertSiege": {
-                    "visible": False
-                },
-                "continuiteEconomique": {
-                    "visible": False
-                },
-                "dateDernierTraitementLienSuccession": {
-                    "visible": False
-                }
-            }
-        }
-        main(csv_in, transformation_dict, csv_out)
-
     def test_transform_without_agg(self):
         csv_in_string = "a\n1"
         csv_out_string = "A\r\n1\r\n"
@@ -210,6 +174,46 @@ class CSVTransformerParserTestCase(unittest.TestCase):
         }
         transformation = TransformationParser(False).parse(transformation_dict)
         self.assertEqual({}, transformation._col_agg_by_name)
+
+
+class CSVTransformerIntegrationTestCase(unittest.TestCase):
+    def test_transform1(self):
+        csv_in = {"encoding": "utf-8", "path": (
+                FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
+        csv_out = {"path": FIXTURE_PATH / "test.csv"}
+        transformation_dict = {
+            "filter": "date_lien_succ > date('2000-01-01')",
+            "cols": {
+                "siretEtablissementPredecesseur": {
+                    "visible": False
+                },
+                "siretEtablissementSuccesseur": {
+                    "type": "int",
+                    "agg": "mean",
+                    "rename": "Avg siretSuccesseur"
+                },
+                "dateLienSuccession": {
+                    "type": "date",
+                    "id": "date_lien_succ",
+                },
+                "transfertSiege": {
+                    "visible": False
+                },
+                "continuiteEconomique": {
+                    "visible": False
+                },
+                "dateDernierTraitementLienSuccession": {
+                    "visible": False
+                }
+            }
+        }
+        main(csv_in, transformation_dict, csv_out)
+
+
+class ExpressionParserTestCase(unittest.TestCase):
+    def test_func(self):
+        f = ExpressionParser().parse("it * 2")
+        self.assertEqual(6, f(3))
 
 
 if __name__ == '__main__':
