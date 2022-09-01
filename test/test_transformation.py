@@ -209,6 +209,65 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
         }
         main(csv_in, transformation_dict, csv_out)
 
+    def test_transform2(self):
+        csv_in = {"encoding": "latin-1", "path": (
+                FIXTURE_PATH / "resultats-par-niveau-cirlg-t1-france-entiere.txt"),
+                  "delimiter": ";"
+                  }
+        csv_out = {"path": FIXTURE_PATH / "test.csv"}
+        transformation_dict = {"cols": {
+            "Code de la circonscription": {
+                "agg": "count",
+                "rename": "Nombre de circonscriptions"
+            },
+            "Libellé de la circonscription": {
+                "visible": False
+            },
+            "Etat saisie": {
+                "visible": False
+            }, "Inscrits": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "Abstentions": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "% Abs/Ins": {"visible": False},
+            "Votants": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "% Vot/Ins": {"visible": False},
+            "Blancs": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "% Blancs/Ins": {"visible": False},
+            "% Blancs/Vot": {"visible": False},
+            "Nuls": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "% Nuls/Ins": {"visible": False},
+            "% Nuls/Vot": {"visible": False},
+            "Exprimés": {
+                "type": "int",
+                "agg": "sum"
+            },
+            "% Exp/Ins": {"visible": False},
+            "% Exp/Vot": {"visible": False},
+            "N°Panneau": {"visible": False},
+            "Sexe": {"visible": False},
+            "Nom": {"visible": False},
+            "Prénom": {"visible": False},
+            "Voix": {"visible": False},
+            "% Voix/Ins": {"visible": False},
+            "% Voix/Exp": {"visible": False}
+        }
+        }
+        main(csv_in, transformation_dict, csv_out)
+
 
 class ExpressionParserTestCase(unittest.TestCase):
     def test_func(self):

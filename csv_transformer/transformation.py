@@ -33,6 +33,8 @@ TypedRow = Mapping[str, Any]
 FUNC_BY_AGG = {
     "all": all,
     "any": any,
+    "first": lambda xs: xs[0] ,
+    "last": lambda xs: xs[-1],
     "count": len,
     "count_distinct": len,
     "sum": sum,
@@ -293,7 +295,7 @@ class TransformationParser:
 
 
 def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
-         risky=False):
+         risky=False, limit=None):
     transformation = TransformationParser(risky).parse(transformation_dict)
 
     in_encoding = csv_in.pop("encoding", "utf-8")
@@ -308,14 +310,14 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         new_header = transformation.new_header(header)
         writer.writerow(new_header)
         if transformation.has_agg():
-            for row in itertools.islice(reader, 10):
+            for row in itertools.islice(reader, limit):
                 row = dict(zip(header, row))
                 transformation.take(row)
 
             for row in transformation.agg_rows():
                 writer.writerow([row[n] for n in new_header])
         else:
-            for row in itertools.islice(reader, 10):
+            for row in itertools.islice(reader, limit):
                 row = dict(zip(header, row))
                 row = transformation.transform(row)
                 if row is not None:
