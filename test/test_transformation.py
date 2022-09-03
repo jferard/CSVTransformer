@@ -289,10 +289,13 @@ class ExpressionParserTestCase(unittest.TestCase):
 
 
 class HeaderTestCase(unittest.TestCase):
-    def test(self):
+    def test_improve(self):
         self.assertEqual(["a_1", "a_2", "a_3"], improve_header(["a", "a", "a"]))
         self.assertEqual(["a_2", "a_1", "a_3"], improve_header(["a", "a_1", "a"]))
         self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"], improve_header(["a", "", "b", "", "a", ""]))
+
+    def test_normalize(self):
+        self.assertEqual("un_test_effectue", normalize("Un Test  Effectué"))
 
 
 if __name__ == '__main__':

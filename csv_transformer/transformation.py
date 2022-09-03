@@ -349,3 +349,15 @@ def improve_header(header: List[str]) -> List[str]:
         new_header.append(f)
         seen.add(f)
     return new_header
+
+
+SPACE_REGEX = re.compile(r"\s+")
+
+
+def normalize(s: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode(
+        'ascii')
+    s= SPACE_REGEX.sub("_", s)
+    s = s.lower()
+    return s
