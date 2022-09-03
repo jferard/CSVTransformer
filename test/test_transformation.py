@@ -294,6 +294,10 @@ class HeaderTestCase(unittest.TestCase):
         self.assertEqual(["a_2", "a_1", "a_3"], improve_header(["a", "a_1", "a"]))
         self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"], improve_header(["a", "", "b", "", "a", ""]))
 
+    def test_add_fields(self):
+        self.assertEqual(['a', 'b', 'c', 'extra_1', 'extra_2', 'extra_3', 'extra_4', 'extra_5'], add_fields(["a", "b", "c"], total=8))
+        self.assertEqual(["a", "b", "c"], add_fields(["a", "b", "c"], total=2))
+
     def test_normalize(self):
         self.assertEqual("un_test_effectue", normalize("Un Test  Effectué"))
 

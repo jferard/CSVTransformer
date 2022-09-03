@@ -361,3 +361,10 @@ def normalize(s: str) -> str:
     s= SPACE_REGEX.sub("_", s)
     s = s.lower()
     return s
+
+
+def add_fields(fields, prefix="extra", total=1024):
+    if len(fields) >= total:
+        return fields
+
+    return fields + ["{}_{}".format(prefix, i) for i in range(1, total-len(fields) + 1)]
