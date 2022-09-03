@@ -141,6 +141,28 @@ class CSVTransformerTestCase(unittest.TestCase):
             }
         }, csv_in_string, csv_out_string)
 
+    def test_extra(self):
+        csv_in_string = "a\n1,2,3\n4,5,6"
+        csv_out_string = "a,ex_1,ex_2,ex_3\r\n5.0,7.0,9.0,\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                },
+                "ex_1": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                },
+                "ex_2": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                }
+            },
+            "extra": {"prefix": "ex", "count": 4}
+        }, csv_in_string, csv_out_string)
+
     def _test_transformation(self, transformation_dict, csv_in_string,
                              csv_out_string):
         self._test_regular_transformation(transformation_dict, csv_in_string,

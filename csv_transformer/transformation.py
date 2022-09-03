@@ -132,15 +132,23 @@ class Transformation:
     def __init__(self, main_filter: Optional[MainFilter],
                  default_column_transformation: Optional[
                      DefaultColumnTransformation],
-                 col_transformation_by_name: Dict[str, ColumnTransformation]):
+                 col_transformation_by_name: Dict[str, ColumnTransformation], extra_prefix: str, extra_count: int):
         self._main_filter = main_filter
         self._default_column_transformation = default_column_transformation
         self._col_transformation_by_name = col_transformation_by_name
+        self._extra_prefix = extra_prefix
+        self._extra_count = extra_count
         self._d = {}
 
     def has_agg(self) -> bool:
         return any(self._col_is_agg(n)
                    for n in self._col_transformation_by_name)
+
+    def add_fields(self, header: List[str]) -> List[str]:
+        if self._extra_count > 0:
+            return add_fields(header, self._extra_prefix, self._extra_count)
+        else:
+            return header
 
     def new_header(self, header: Iterable[str]) -> List[str]:
         return [self._col_rename(n) for n in header if self._col_is_visible(n)]
@@ -392,6 +400,8 @@ class TransformationParser:
             Optional[DefaultColumnTransformation], None)
         self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
                                                 {})
+        self._extra_prefix = "extra"
+        self._extra_count = 1024
 
     def parse(self, json_transformation: JSONValue) -> Transformation:
         try:
@@ -401,15 +411,17 @@ class TransformationParser:
         default_col = json_transformation.get("default_col", {})
         self._parse_default_col(default_col)
 
-
         cols = json_transformation.get("cols", {})
         for name, col in cols.items():
             self._col_transformation_by_name[
                 name] = ColumnTransformationParser(self._risky).parse(col)
 
+        extra = json_transformation.get("extra", {})
+        self._parse_extra(extra)
+
         return Transformation(self._main_filter,
                               self._default_column_transformation,
-                              self._col_transformation_by_name)
+                              self._col_transformation_by_name, self._extra_prefix, self._extra_count)
 
     def _parse_main_filter(self, main_filter_str: str):
         if self._risky:
@@ -420,6 +432,10 @@ class TransformationParser:
     def _parse_default_col(self, defaut_col: JSONValue):
         self._default_column_transformation = DefaultColumnTransformationParser().parse(
             defaut_col)
+
+    def _parse_extra(self, extra: JSONValue):
+        self._extra_count = extra.get("count", 1024)
+        self._extra_prefix = extra.get("prefix", "extra")
 
 
 def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
@@ -435,22 +451,23 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         writer = csv.writer(d, **csv_out)
         reader = csv.reader(s, **csv_in)
         header = next(reader)
-        header = improve_header(header)
-        new_header = transformation.new_header(header)
+        new_header = transformation.add_fields(header)
+        new_header = improve_header(new_header)
+        new_header = transformation.new_header(new_header)
         writer.writerow(new_header)
         if transformation.has_agg():
             for row in itertools.islice(reader, limit):
-                row = dict(zip(header, row))
+                row = dict(zip(new_header, row))
                 transformation.take(row)
 
             for row in transformation.agg_rows():
-                writer.writerow([row[n] for n in new_header])
+                writer.writerow([row.get(n, "") for n in new_header])
         else:
             for row in itertools.islice(reader, limit):
                 row = dict(zip(header, row))
                 row = transformation.transform(row)
                 if row is not None:
-                    writer.writerow([row[n] for n in new_header])
+                    writer.writerow([row.get(n, "") for n in new_header])
 
 
 SUFFIX_REGEX = re.compile(r"^(.*)_(\d+)$")
