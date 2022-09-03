@@ -126,6 +126,21 @@ class CSVTransformerTestCase(unittest.TestCase):
             }
         }, csv_in_string, csv_out_string)
 
+
+    def test_default(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "b\r\n5.0\r\n"
+
+        self._test_transformation({
+            "default_col": {"visible": False},
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
     def _test_transformation(self, transformation_dict, csv_in_string,
                              csv_out_string):
         self._test_regular_transformation(transformation_dict, csv_in_string,
@@ -174,8 +189,9 @@ class CSVTransformerParserTestCase(unittest.TestCase):
             }
         }
         transformation = TransformationParser(False).parse(transformation_dict)
+        ct = transformation._col_transformation_by_name['a']
         with self.assertRaises(KeyError):
-            transformation._col_type_by_name['a']("2")
+            ct.type_value("2")
 
     def test_err_col_agg(self):
         transformation_dict = {
@@ -186,7 +202,7 @@ class CSVTransformerParserTestCase(unittest.TestCase):
             }
         }
         transformation = TransformationParser(False).parse(transformation_dict)
-        self.assertEqual({}, transformation._col_agg_by_name)
+        self.assertFalse(transformation.has_agg())
 
 
 class CSVTransformerIntegrationTestCase(unittest.TestCase):

@@ -32,7 +32,7 @@ from typing import (Any, Callable, Iterator, List, Mapping, Optional, Union,
 
 class Literal:
     """
-    A literal: any value
+    A literal: any value_str
     """
 
     def __init__(self, value: Any):
