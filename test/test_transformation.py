@@ -100,6 +100,19 @@ class CSVTransformerTestCase(unittest.TestCase):
             }
         }, csv_in_string, csv_out_string)
 
+    def test_duplicate(self):
+        csv_in_string = "a,a\n1,2\n1,3"
+        csv_out_string = "a_1,a_2\r\n1,\"2.0, 3.0\"\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a_2": {
+                    "type": "float(it)",
+                    "agg": "string_agg"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
     def test_string_sum(self):
         csv_in_string = "a,b\n1,2\n1,3"
         csv_out_string = "a,b\r\n1,5.0\r\n"
@@ -273,6 +286,13 @@ class ExpressionParserTestCase(unittest.TestCase):
     def test_func(self):
         f = ExpressionParser().parse("it * 2")
         self.assertEqual(6, f(3))
+
+
+class HeaderTestCase(unittest.TestCase):
+    def test(self):
+        self.assertEqual(["a_1", "a_2", "a_3"], improve_header(["a", "a", "a"]))
+        self.assertEqual(["a_2", "a_1", "a_3"], improve_header(["a", "a_1", "a"]))
+        self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"], improve_header(["a", "", "b", "", "a", ""]))
 
 
 if __name__ == '__main__':

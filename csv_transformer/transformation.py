@@ -15,11 +15,12 @@
 #
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import collections
 import csv
 import datetime as dt
 import itertools
 import logging
+import re
 import statistics
 from typing import (Union, Mapping, List, Callable, Any, cast, Dict, Iterable,
                     Optional, Iterator)
@@ -33,7 +34,7 @@ TypedRow = Mapping[str, Any]
 FUNC_BY_AGG = {
     "all": all,
     "any": any,
-    "first": lambda xs: xs[0] ,
+    "first": lambda xs: xs[0],
     "last": lambda xs: xs[-1],
     "count": len,
     "count_distinct": len,
@@ -307,6 +308,7 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         writer = csv.writer(d, **csv_out)
         reader = csv.reader(s, **csv_in)
         header = next(reader)
+        header = improve_header(header)
         new_header = transformation.new_header(header)
         writer.writerow(new_header)
         if transformation.has_agg():
@@ -322,3 +324,28 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
                 row = transformation.transform(row)
                 if row is not None:
                     writer.writerow([row[n] for n in new_header])
+
+
+SUFFIX_REGEX = re.compile(r"^(.*)_(\d+)$")
+
+
+def improve_header(header: List[str]) -> List[str]:
+    c = collections.Counter(header)
+    duplicates = set(k for k, v in c.items() if v > 1)
+    seen = set(header)
+    new_header = []
+    for f in header:
+        if f in duplicates:
+            while f in seen:
+                m = SUFFIX_REGEX.match(f)
+                if m:
+                    base = m.group(1)
+                    v = int(m.group(2))
+                else:
+                    base = f
+                    v = 0
+                f = "{}_{}".format(base, v + 1)
+
+        new_header.append(f)
+        seen.add(f)
+    return new_header
