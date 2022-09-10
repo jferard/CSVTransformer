@@ -32,6 +32,7 @@ TypedRow = Mapping[str, Any]
 MainFilter = Callable[[TypedRow], bool]
 ColType = Callable[[str], Any]
 ColFilter = Callable[[Any], bool]
+ColRename = Callable[[str], str]
 Expression = Callable[[Any], Any]
 ColAgg = Callable[[List[Any]], Any]
 
@@ -67,19 +68,26 @@ JSONValue = Union[
 
 
 class DefaultColumnTransformation:
-    def __init__(self, visible: bool):
+    def __init__(self, visible: bool, normalize: bool):  # type
         self._visible = visible
+        self._normalize = normalize
 
     def is_visible(self) -> bool:
         return self._visible
 
+    def rename(self, name: str) -> str:
+        if self._normalize:
+            return normalize(name)
+        else:
+            return id_func(name)
+
 
 class ColumnTransformation:
-    def __init__(self, col_visible: bool, col_type: Optional[ColType],
-                 col_filter: Optional[ColFilter],
-                 col_map: Optional[Expression],
+    def __init__(self, col_visible: bool, col_type: ColType,
+                 col_filter: ColFilter,
+                 col_map: Expression,
                  col_agg: Optional[ColAgg],
-                 col_rename: Optional[str], col_id: Optional[str]):
+                 col_rename: ColRename, col_id: ColRename):
         self._visible = col_visible
         self._type = col_type
         self._filter = col_filter
@@ -92,57 +100,44 @@ class ColumnTransformation:
         return self._agg is not None
 
     def rename(self, name: str) -> str:
-        if self._rename is None:
-            return name
-        else:
-            return self._rename
+        return self._rename(name)
 
     def type_value(self, value_str: str) -> Any:
-        if self._type is None:
-            return value_str
-        else:
-            return self._type(value_str)
+        return self._type(value_str)
 
     def is_visible(self) -> bool:
         return self._visible
 
     def agg(self, values: List[Any]) -> Any:
-        if self._agg is None:
-            raise ValueError()
-        else:
-            return self._agg(values)
+        return self._agg(values)
 
-    def get_id(self) -> str:
-        return self._id
+    def get_id(self, name: str) -> str:
+        return self._id(name)
 
     def col_filter(self, value: Any) -> bool:
-        if self._filter is None:
-            return True
-        else:
-            return self._filter(value)
+        return self._filter(value)
 
     def col_map(self, value: Any) -> Any:
-        if self._map is None:
-            return value
-        else:
-            return self._map(value)
+        return self._map(value)
 
 
 class Transformation:
-    def __init__(self, main_filter: Optional[MainFilter],
-                 default_column_transformation: Optional[
-                     DefaultColumnTransformation],
-                 col_transformation_by_name: Dict[str, ColumnTransformation], extra_prefix: str, extra_count: int):
+    def __init__(self, main_filter: MainFilter,
+                 default_column_transformation: DefaultColumnTransformation,
+                 col_transformation_by_name: Dict[str, ColumnTransformation],
+                 extra_prefix: str, extra_count: int):
         self._main_filter = main_filter
         self._default_column_transformation = default_column_transformation
         self._col_transformation_by_name = col_transformation_by_name
+        self._col_transformation_by_id = {self._col_id(n): v for n, v in
+                                          col_transformation_by_name.items()}
         self._extra_prefix = extra_prefix
         self._extra_count = extra_count
         self._d = {}
 
     def has_agg(self) -> bool:
-        return any(self._col_is_agg(n)
-                   for n in self._col_transformation_by_name)
+        return any(self._col_is_agg(col_id)
+                   for col_id in self._col_transformation_by_id)
 
     def add_fields(self, header: List[str]) -> List[str]:
         if self._extra_count > 0:
@@ -150,69 +145,80 @@ class Transformation:
         else:
             return header
 
-    def new_header(self, header: Iterable[str]) -> List[str]:
-        return [self._col_rename(n) for n in header if self._col_is_visible(n)]
+    def file_header(self, header: Iterable[str]) -> List[Optional[str]]:
+        return [self._col_rename(n) for n in header
+                if self._col_is_visible_by_name(n)]
 
-    def transform(self, row: StrRow) -> Optional[TypedRow]:
-        row = self._type_row(row)
-        if self._accept(row):
-            return self._rename(self._map(row))
+    def col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
+        return [self._col_id(n) for n in header]
+
+    def visible_col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
+        return [self._col_id(n) for n in header
+                if self._col_is_visible_by_name(n)]
+
+    def transform(self, value_by_id: StrRow) -> Optional[TypedRow]:
+        value_by_id = self._type_row(value_by_id)
+        typed_value_by_id = self._map(value_by_id)
+        if self._filter(typed_value_by_id):
+            return typed_value_by_id
         else:
             return None
 
-    def take(self, row: StrRow):
-        row = self._type_row(row)
-        if self._accept(row):
-            key = tuple([
-                (n, row[n]) for n in row
-                if not self._col_is_agg(n) and self._col_is_visible(n)
-            ])
-            for n in self._col_transformation_by_name:
-                if self._col_is_agg(n):
-                    self._d.setdefault(key, {}).setdefault(n, []).append(row[n])
+    def _type_row(self, value_by_id: StrRow) -> TypedRow:
+        return {i: self._type_value(i, v) for i, v in value_by_id.items()}
 
-    def agg_rows(self) -> Iterator[TypedRow]:
-        for key, values_by_name in self._d.items():
-            row = dict(key)
-            for name, values in values_by_name.items():
-                row[name] = self._col_transformation_by_name[name].agg(values)
-
-            yield self._rename(row)
-
-    def _type_row(self, row: StrRow) -> StrRow:
-        return {n: self._type_value(n, v) for n, v in row.items()}
-
-    def _accept(self, row: TypedRow) -> bool:
-        if self._main_filter is None:
-            return all(
-                self._col_accept(name, value) for name, value in row.items())
-        else:
-            value_by_id = {self._col_id(name): value for name, value in row.items()}
-            if self._main_filter(value_by_id):
-                return all(
-                    self._col_accept(name, value) for name, value in row.items())
-            else:
-                return False
-
-    def _type_value(self, name: str, value: str) -> Any:
+    def _type_value(self, col_id: str, value: str) -> Any:
         try:
-            return self._col_transformation_by_name[name].type_value(value)
+            return self._col_transformation_by_id[col_id].type_value(value)
         except KeyError:
             return value
 
-    def _map(self, row: TypedRow) -> TypedRow:
-        return {
-            n: self._col_map(n, v) for n, v in row.items()
-        }
+    def _filter(self, typed_value_by_id: TypedRow) -> bool:
+        typed_value_by_id = {self._col_id(name): value for name, value in
+                             typed_value_by_id.items() if name is not None}
+        if self._main_filter(typed_value_by_id):
+            return all(
+                self._col_filter(col_id, value) for col_id, value in
+                typed_value_by_id.items())
+        else:
+            return False
 
     def _rename(self, row: TypedRow) -> TypedRow:
+        """Deprecated"""
         return {
             self._col_rename(n): v for n, v in row.items()
         }
 
-    def _col_is_agg(self, name: str) -> bool:
+    def _map(self, typed_value_by_id: TypedRow) -> TypedRow:
+        return {
+            n: self._col_map(n, v) for n, v in typed_value_by_id.items()
+        }
+
+    def take_or_ignore(self, value_by_id: StrRow):
+        value_by_id = self._type_row(value_by_id)
+        typed_value_by_id = self._map(value_by_id)
+        if self._filter(typed_value_by_id):
+            key = tuple([
+                (i, typed_value_by_id[i]) for i in typed_value_by_id
+                if not self._col_is_agg(i) and self._col_is_visible_by_id(i)
+            ])
+            for col_id in self._col_transformation_by_id:
+                if self._col_is_agg(col_id):
+                    self._d.setdefault(
+                        key, {}).setdefault(
+                        col_id, []).append(typed_value_by_id[col_id])
+
+    def agg_rows(self) -> Iterator[TypedRow]:
+        for key, values_by_id in self._d.items():
+            row = dict(key)
+            for col_id, values in values_by_id.items():
+                row[col_id] = self._col_transformation_by_id[col_id].agg(values)
+
+            yield self._rename(row)
+
+    def _col_is_agg(self, col_id: str) -> bool:
         try:
-            return self._col_transformation_by_name[name].has_agg()
+            return self._col_transformation_by_id[col_id].has_agg()
         except KeyError:
             return False
 
@@ -220,32 +226,35 @@ class Transformation:
         try:
             return self._col_transformation_by_name[name].rename(name)
         except KeyError:
-            return name
+            return self._default_column_transformation.rename(name)
 
-    def _col_is_visible(self, name: str) -> bool:
+    def _col_is_visible_by_name(self, name: str) -> bool:
         try:
             return self._col_transformation_by_name[name].is_visible()
         except KeyError:
-            if self._default_column_transformation is None:
-                return True
-            else:
-                return self._default_column_transformation.is_visible()
+            return self._default_column_transformation.is_visible()
 
     def _col_id(self, name: str) -> str:
         try:
-            return self._col_transformation_by_name[name].get_id()
+            return self._col_transformation_by_name[name].get_id(name)
         except KeyError:
-            return name
+            return self._default_column_transformation.rename(name)
 
-    def _col_accept(self, name: str, value: Any) -> bool:
+    def _col_is_visible_by_id(self, col_id: str) -> bool:
         try:
-            return self._col_transformation_by_name[name].col_filter(value)
+            return self._col_transformation_by_id[col_id].is_visible()
+        except KeyError:
+            return self._default_column_transformation.is_visible()
+
+    def _col_filter(self, col_id: str, value: Any) -> bool:
+        try:
+            return self._col_transformation_by_id[col_id].col_filter(value)
         except KeyError:
             return True
 
-    def _col_map(self, name: str, value: Any) -> Any:
+    def _col_map(self, col_id: str, value: Any) -> Any:
         try:
-            return self._col_transformation_by_name[name].col_map(value)
+            return self._col_transformation_by_id[col_id].col_map(value)
         except KeyError:
             return value
 
@@ -285,28 +294,42 @@ class RiskyExpressionParser:
 class DefaultColumnTransformationParser:
     def __init__(self):
         self._visible = None
+        self._normalize = None
+        self._type = None
 
-    def parse(self, default_col: JSONValue):
+    def parse(self, default_col: JSONValue) -> DefaultColumnTransformation:
         self._visible = default_col.get("visible", True)
+        self._normalize = default_col.get("normalize", True)
 
-        return DefaultColumnTransformation(self._visible)
+        return DefaultColumnTransformation(self._visible, self._normalize)
+
+
+def id_func(x: Any) -> Any: return x
+
+
+def true_func(_x: Any) -> Any: return True
 
 
 class ColumnTransformationParser:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, risky: bool):
+    def __init__(self, risky: bool,
+                 default_column_transformation: DefaultColumnTransformation):
         self._risky = risky
-        self._visible = True
-        self._type = cast(Optional[ColType], None)
-        self._filter = cast(Optional[ColFilter], None)
-        self._map = cast(Optional[Expression], None)
+        self._default_column_transformation = default_column_transformation
+        self._visible = default_column_transformation.is_visible()
+        self._type = id_func
+        self._filter = true_func
+        self._map = id_func
         self._agg = cast(Optional[ColAgg], None)
-        self._rename = cast(Optional[str], None)
-        self._id = cast(Optional[str], None)
+        self._rename = default_column_transformation.rename
+        self._id = self._rename
 
     def parse(self, json_col: JSONValue):
-        self._visible = json_col.get("visible", True)
+        try:
+            self._visible = json_col["visible"]
+        except KeyError:
+            pass
 
         try:
             col_type_str = json_col["type"]
@@ -380,14 +403,14 @@ class ColumnTransformationParser:
     def _parse_col_agg(self, col_agg_str: str):
         try:
             self._agg = FUNC_BY_AGG[col_agg_str]
-        except KeyError as e:
+        except KeyError:
             self._logger.exception("Agg error")
 
     def _parse_col_rename(self, col_rename: str):
-        self._rename = col_rename
+        self._rename = lambda _name: col_rename
 
     def _parse_col_id(self, col_id: str):
-        self._id = col_id
+        self._id = lambda _name: col_id
 
 
 class TransformationParser:
@@ -395,9 +418,9 @@ class TransformationParser:
 
     def __init__(self, risky: bool):
         self._risky = risky
-        self._main_filter = cast(Optional[MainFilter], None)
-        self._default_column_transformation = cast(
-            Optional[DefaultColumnTransformation], None)
+        self._main_filter = true_func
+        self._default_column_transformation = DefaultColumnTransformation(True,
+                                                                          False)
         self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
                                                 {})
         self._extra_prefix = "extra"
@@ -414,14 +437,16 @@ class TransformationParser:
         cols = json_transformation.get("cols", {})
         for name, col in cols.items():
             self._col_transformation_by_name[
-                name] = ColumnTransformationParser(self._risky).parse(col)
+                name] = ColumnTransformationParser(
+                self._risky, self._default_column_transformation).parse(col)
 
         extra = json_transformation.get("extra", {})
         self._parse_extra(extra)
 
         return Transformation(self._main_filter,
                               self._default_column_transformation,
-                              self._col_transformation_by_name, self._extra_prefix, self._extra_count)
+                              self._col_transformation_by_name,
+                              self._extra_prefix, self._extra_count)
 
     def _parse_main_filter(self, main_filter_str: str):
         if self._risky:
@@ -434,7 +459,7 @@ class TransformationParser:
             defaut_col)
 
     def _parse_extra(self, extra: JSONValue):
-        self._extra_count = extra.get("count", 1024)
+        self._extra_count = extra.get("count", -1)
         self._extra_prefix = extra.get("prefix", "extra")
 
 
@@ -451,23 +476,32 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         writer = csv.writer(d, **csv_out)
         reader = csv.reader(s, **csv_in)
         header = next(reader)
-        new_header = transformation.add_fields(header)
-        new_header = improve_header(new_header)
-        new_header = transformation.new_header(new_header)
-        writer.writerow(new_header)
+        clean_header = transformation.add_fields(header)
+        clean_header = improve_header(clean_header)
+
+        # write file header
+        col_renames = transformation.file_header(clean_header)
+        writer.writerow(col_renames)
+
+        # the id header
+        col_ids = transformation.col_ids(clean_header)
+        visible_col_ids = transformation.visible_col_ids(clean_header)
+
         if transformation.has_agg():
             for row in itertools.islice(reader, limit):
-                row = dict(zip(new_header, row))
-                transformation.take(row)
+                value_by_id = dict(zip(col_ids, row))
+                transformation.take_or_ignore(value_by_id)
 
-            for row in transformation.agg_rows():
-                writer.writerow([row.get(n, "") for n in new_header])
+            for value_by_id in transformation.agg_rows():
+                writer.writerow(
+                    [value_by_id.get(i, "") for i in visible_col_ids])
         else:
             for row in itertools.islice(reader, limit):
-                row = dict(zip(header, row))
-                row = transformation.transform(row)
-                if row is not None:
-                    writer.writerow([row.get(n, "") for n in new_header])
+                value_by_id = dict(zip(col_ids, row))
+                value_by_id = transformation.transform(value_by_id)
+                if value_by_id is not None:
+                    writer.writerow(
+                        [value_by_id.get(i, "") for i in visible_col_ids])
 
 
 SUFFIX_REGEX = re.compile(r"^(.*)_(\d+)$")
@@ -479,6 +513,7 @@ def improve_header(header: List[str]) -> List[str]:
     seen = set(header)
     new_header = []
     for f in header:
+        f = f.strip()
         if f in duplicates:
             while f in seen:
                 m = SUFFIX_REGEX.match(f)

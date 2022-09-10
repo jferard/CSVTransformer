@@ -126,8 +126,21 @@ class CSVTransformerTestCase(unittest.TestCase):
             }
         }, csv_in_string, csv_out_string)
 
+    def test_normalize(self):
+        csv_in_string = "À demain, été comme hiver\n1,2\n1,3"
+        csv_out_string = "a_demain,ete_comme_hiver\r\n1,5.0\r\n"
 
-    def test_default(self):
+        self._test_transformation({
+            "default_col": {"normalize": True},
+            "cols": {
+                "ete_comme_hiver": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_agg(self):
         csv_in_string = "a,b\n1,2\n1,3"
         csv_out_string = "b\r\n5.0\r\n"
 
@@ -135,6 +148,7 @@ class CSVTransformerTestCase(unittest.TestCase):
             "default_col": {"visible": False},
             "cols": {
                 "b": {
+                    "visible": True,
                     "type": "float(it)",
                     "agg": "sum"
                 }
@@ -179,7 +193,8 @@ class CSVTransformerTestCase(unittest.TestCase):
         csv_out_file.close = lambda: None
         csv_out_path.open.side_effect = [csv_out_file]
         csv_out_path.close.side_effect = []
-        csv_in = {"encoding": "utf-8", "path": csv_in_path}
+        csv_in = {"encoding": "utf-8", "path": csv_in_path,
+                  "skipinitialspace": True}
         csv_out = {"path": csv_out_path}
         transformation_dict = transformation_dict
         main(csv_in, transformation_dict, csv_out)
@@ -234,28 +249,19 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
         csv_out = {"path": FIXTURE_PATH / "test.csv"}
         transformation_dict = {
             "filter": "date_lien_succ > date('2000-01-01')",
+            "default_col": {"visible": False},
             "cols": {
-                "siretEtablissementPredecesseur": {
-                    "visible": False
-                },
                 "siretEtablissementSuccesseur": {
+                    "visible": True,
                     "type": "int",
                     "agg": "mean",
                     "rename": "Avg siretSuccesseur"
                 },
                 "dateLienSuccession": {
+                    "visible": True,
                     "type": "date",
                     "id": "date_lien_succ",
                 },
-                "transfertSiege": {
-                    "visible": False
-                },
-                "continuiteEconomique": {
-                    "visible": False
-                },
-                "dateDernierTraitementLienSuccession": {
-                    "visible": False
-                }
             }
         }
         main(csv_in, transformation_dict, csv_out)
@@ -266,56 +272,44 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
                   "delimiter": ";"
                   }
         csv_out = {"path": FIXTURE_PATH / "test.csv"}
-        transformation_dict = {"cols": {
-            "Code de la circonscription": {
-                "agg": "count",
-                "rename": "Nombre de circonscriptions"
-            },
-            "Libellé de la circonscription": {
-                "visible": False
-            },
-            "Etat saisie": {
-                "visible": False
-            }, "Inscrits": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "Abstentions": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "% Abs/Ins": {"visible": False},
-            "Votants": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "% Vot/Ins": {"visible": False},
-            "Blancs": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "% Blancs/Ins": {"visible": False},
-            "% Blancs/Vot": {"visible": False},
-            "Nuls": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "% Nuls/Ins": {"visible": False},
-            "% Nuls/Vot": {"visible": False},
-            "Exprimés": {
-                "type": "int",
-                "agg": "sum"
-            },
-            "% Exp/Ins": {"visible": False},
-            "% Exp/Vot": {"visible": False},
-            "N°Panneau": {"visible": False},
-            "Sexe": {"visible": False},
-            "Nom": {"visible": False},
-            "Prénom": {"visible": False},
-            "Voix": {"visible": False},
-            "% Voix/Ins": {"visible": False},
-            "% Voix/Exp": {"visible": False}
-        }
+        transformation_dict = {
+            "default_col": {"visible": False},
+            "cols": {
+                "Code de la circonscription": {
+                    "visible": True,
+                    "agg": "count",
+                    "rename": "Nombre de circonscriptions"
+                }, "Inscrits": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Abstentions": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Votants": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Blancs": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Nuls": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Exprimés": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+            }
         }
         main(csv_in, transformation_dict, csv_out)
 
@@ -329,11 +323,15 @@ class ExpressionParserTestCase(unittest.TestCase):
 class HeaderTestCase(unittest.TestCase):
     def test_improve(self):
         self.assertEqual(["a_1", "a_2", "a_3"], improve_header(["a", "a", "a"]))
-        self.assertEqual(["a_2", "a_1", "a_3"], improve_header(["a", "a_1", "a"]))
-        self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"], improve_header(["a", "", "b", "", "a", ""]))
+        self.assertEqual(["a_2", "a_1", "a_3"],
+                         improve_header(["a", "a_1", "a"]))
+        self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"],
+                         improve_header(["a", "", "b", "", "a", ""]))
 
     def test_add_fields(self):
-        self.assertEqual(['a', 'b', 'c', 'extra_1', 'extra_2', 'extra_3', 'extra_4', 'extra_5'], add_fields(["a", "b", "c"], total=8))
+        self.assertEqual(
+            ['a', 'b', 'c', 'extra_1', 'extra_2', 'extra_3', 'extra_4',
+             'extra_5'], add_fields(["a", "b", "c"], total=8))
         self.assertEqual(["a", "b", "c"], add_fields(["a", "b", "c"], total=2))
 
     def test_normalize(self):
