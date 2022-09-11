@@ -15,12 +15,17 @@
 #
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+import operator
 import unittest
 from tokenize import TokenInfo
 
+from csv_transformer import BINOP_BY_NAME, PREFIX_UNOP_BY_NAME, \
+    INFIX_UNOP_BY_NAME
+from csv_transformer.functions import to_date, to_datetime
 from csv_transformer.simple_eval import *
 import datetime as dt
+
+from csv_transformer.simple_eval import ShuntingYard
 
 
 class LiteralTestCase(unittest.TestCase):
@@ -162,6 +167,7 @@ class TokenizeTestCase(unittest.TestCase):
 
 class ShuntingYardTestCase(unittest.TestCase):
     def test_shunting_yard(self):
+        tokens = tokenize_expr("year(it) > round(2000, 2)")
         self.assertEqual([
             'STOP',
             Identifier('it'),
@@ -171,10 +177,13 @@ class ShuntingYardTestCase(unittest.TestCase):
             Literal(2),
             Function('round', None),
             BinOp('>', -2, True, None)
-        ], list(shunting_yard(tokenize_expr("year(it) > round(2000, 2)"))))
+        ], list(ShuntingYard(False, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                             INFIX_UNOP_BY_NAME).process(tokens)))
 
     def test_shunting_yard2(self):
-        tokens = shunting_yard(tokenize_expr("min((a+2)*3, 4*2)"))
+        tokens1 = tokenize_expr("min((a+2)*3, 4*2)")
+        tokens = ShuntingYard(False, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                              INFIX_UNOP_BY_NAME).process(tokens1)
         self.assertEqual([
             'STOP',
             Identifier('a'),
@@ -189,6 +198,8 @@ class ShuntingYardTestCase(unittest.TestCase):
         ], tokens)
 
     def test_shunting_yard3(self):
+        tokens = tokenize_expr(
+           "str(day('2015-05-03'))+'/'+str(month('2015-05-03'))+'/'+str(year('2015-05-03'))")
         self.assertEqual(
             ['STOP',
              'STOP',
@@ -211,13 +222,15 @@ class ShuntingYardTestCase(unittest.TestCase):
              Function('year', None),
              Function('str', None),
              BinOp('+', 0, False, None)
-             ], shunting_yard(tokenize_expr(
-                "str(day('2015-05-03'))+'/'+str(month('2015-05-03'))+'/'+str(year('2015-05-03'))")))
+             ], ShuntingYard(False, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                             INFIX_UNOP_BY_NAME).process(tokens))
 
 
 class EvalTestCase(unittest.TestCase):
     def test_eval0(self):
-        tokens = shunting_yard(tokenize_expr("min((a+2)*3, 4*2)"))
+        tokens1 = tokenize_expr("min((a+2)*3, 4*2)")
+        tokens = ShuntingYard(False, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                              INFIX_UNOP_BY_NAME).process(tokens1)
         value_by_name = {"a": 10}
         self.assertEqual(8, evaluate(tokens, value_by_name))
 
@@ -320,6 +333,18 @@ class EvalTestCase(unittest.TestCase):
     def test_err_comma(self):
         with self.assertRaises(ValueError):
             eval_expr("1+2.5,")
+
+
+def eval_expr(s: str, value_by_name: Optional[Mapping[str, Any]] = None,
+              debug=False) -> Any:
+    tokens = tokenize_expr(s)
+    if debug:
+        tokens = list(tokens)
+        print("Ts: {}".format(tokens))
+        tokens = iter(tokens)
+    tokens = ShuntingYard(debug, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                          INFIX_UNOP_BY_NAME).process(tokens)
+    return evaluate(tokens, value_by_name)
 
 
 if __name__ == '__main__':

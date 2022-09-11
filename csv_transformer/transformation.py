@@ -16,16 +16,17 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import collections
-import csv
-import datetime as dt
-import itertools
 import logging
 import re
-import statistics
-from typing import (Union, Mapping, List, Callable, Any, cast, Dict, Iterable,
-                    Optional, Iterator)
+from typing import (Mapping, List, Callable, Any, cast, Dict, Iterable,
+                    Optional, Iterator, Union)
 
-from csv_transformer.simple_eval import tokenize_expr, shunting_yard, evaluate
+from csv_transformer.functions import id_func, true_func, normalize
+from csv_transformer.simple_eval import (
+    tokenize_expr, evaluate, ShuntingYard)
+
+JSONValue = Union[
+    int, float, str, bool, Dict[str, "JSONValue"], List["JSONValue"]]
 
 StrRow = Mapping[str, str]
 TypedRow = Mapping[str, Any]
@@ -36,35 +37,8 @@ ColRename = Callable[[str], str]
 Expression = Callable[[Any], Any]
 ColAgg = Callable[[List[Any]], Any]
 
+
 # https://www.postgresql.org/docs/current/functions-aggregate.html
-FUNC_BY_AGG = {
-    "all": all,
-    "any": any,
-    "first": lambda xs: xs[0],
-    "last": lambda xs: xs[-1],
-    "count": len,
-    "count_distinct": len,
-    "sum": sum,
-    "mean": statistics.mean,
-    "median": statistics.median,
-    "stdev": statistics.stdev,
-    "pstdev": statistics.pstdev,
-    "variance": statistics.variance,
-    "min": min,
-    "max": max,
-    "string_agg": lambda xs: ", ".join(map(str, xs))
-}
-
-FUNC_BY_TYPE = {
-    "int": int,
-    "float_iso": float,
-    "float": float,
-    "date": dt.date.fromisoformat,
-    "date_iso": dt.date.fromisoformat
-}
-
-JSONValue = Union[
-    int, float, str, bool, Dict[str, "JSONValue"], List["JSONValue"]]
 
 
 class DefaultColumnTransformation:
@@ -174,8 +148,6 @@ class Transformation:
             return value
 
     def _filter(self, typed_value_by_id: TypedRow) -> bool:
-        typed_value_by_id = {self._col_id(name): value for name, value in
-                             typed_value_by_id.items() if name is not None}
         if self._main_filter(typed_value_by_id):
             return all(
                 self._col_filter(col_id, value) for col_id, value in
@@ -212,7 +184,8 @@ class Transformation:
         for key, values_by_id in self._d.items():
             row = dict(key)
             for col_id, values in values_by_id.items():
-                row[col_id] = self._col_transformation_by_id[col_id].agg(values)
+                row[col_id] = self._col_transformation_by_id[
+                    col_id].agg(values)
 
             yield self._rename(row)
 
@@ -262,9 +235,17 @@ class Transformation:
 class MainFilterParser:
     _logger = logging.getLogger(__name__)
 
+    def __init__(self, binop_by_name, prefix_unop_by_name,
+                 infix_unop_by_name):
+        self.binop_by_name = binop_by_name
+        self.prefix_unop_by_name = prefix_unop_by_name
+        self.infix_unop_by_name = infix_unop_by_name
+
     def parse(self, main_filter_str: str) -> MainFilter:
         tokens = tokenize_expr(main_filter_str)
-        tokens = shunting_yard(tokens)
+        tokens = ShuntingYard(False, self.binop_by_name,
+                              self.prefix_unop_by_name,
+                              self.infix_unop_by_name).process(tokens)
         return lambda r: evaluate(tokens, r)
 
 
@@ -278,9 +259,17 @@ class RiskyMainFilterParser:
 class ExpressionParser:
     _logger = logging.getLogger(__name__)
 
+    def __init__(self, binop_by_name, prefix_unop_by_name,
+                 infix_unop_by_name):
+        self.binop_by_name = binop_by_name
+        self.prefix_unop_by_name = prefix_unop_by_name
+        self.infix_unop_by_name = infix_unop_by_name
+
     def parse(self, expression_str: str) -> Expression:
         tokens = tokenize_expr(expression_str)
-        tokens = shunting_yard(tokens)
+        tokens = ShuntingYard(False, self.binop_by_name,
+                              self.prefix_unop_by_name,
+                              self.infix_unop_by_name).process(tokens)
         return lambda v: evaluate(tokens, {"it": v})
 
 
@@ -304,18 +293,19 @@ class DefaultColumnTransformationParser:
         return DefaultColumnTransformation(self._visible, self._normalize)
 
 
-def id_func(x: Any) -> Any: return x
-
-
-def true_func(_x: Any) -> Any: return True
-
-
 class ColumnTransformationParser:
     _logger = logging.getLogger(__name__)
 
     def __init__(self, risky: bool,
+                 binop_by_name, prefix_unop_by_name, infix_unop_by_name,
+                 func_by_type, func_by_agg,
                  default_column_transformation: DefaultColumnTransformation):
         self._risky = risky
+        self._binop_by_name = binop_by_name
+        self._prefix_unop_by_name = prefix_unop_by_name
+        self._infix_unop_by_name = infix_unop_by_name
+        self._func_by_agg = func_by_agg
+        self._func_by_type = func_by_type
         self._default_column_transformation = default_column_transformation
         self._visible = default_column_transformation.is_visible()
         self._type = id_func
@@ -353,13 +343,6 @@ class ColumnTransformationParser:
             self._parse_col_map(col_map_str)
 
         try:
-            col_agg_str = json_col["agg"]
-        except KeyError:
-            pass
-        else:
-            self._parse_col_agg(col_agg_str)
-
-        try:
             col_rename_str = json_col["rename"]
         except KeyError:
             pass
@@ -373,6 +356,13 @@ class ColumnTransformationParser:
         else:
             self._parse_col_id(col_id_str)
 
+        try:
+            col_agg_str = json_col["agg"]
+        except KeyError:
+            pass
+        else:
+            self._parse_col_agg(col_agg_str)
+
         return ColumnTransformation(
             self._visible, self._type, self._filter, self._map, self._agg,
             self._rename, self._id,
@@ -380,7 +370,7 @@ class ColumnTransformationParser:
 
     def _parse_col_type(self, col_type_str: str):
         try:
-            self._type = FUNC_BY_TYPE[col_type_str]
+            self._type = self._func_by_type[col_type_str]
         except KeyError:
             parser = self._get_parser()
             self._type = parser.parse(col_type_str)
@@ -393,7 +383,9 @@ class ColumnTransformationParser:
         if self._risky:
             parser = RiskyExpressionParser()
         else:
-            parser = ExpressionParser()
+            parser = ExpressionParser(self._binop_by_name,
+                                      self._prefix_unop_by_name,
+                                      self._infix_unop_by_name)
         return parser
 
     def _parse_col_map(self, col_map_str: str):
@@ -402,7 +394,7 @@ class ColumnTransformationParser:
 
     def _parse_col_agg(self, col_agg_str: str):
         try:
-            self._agg = FUNC_BY_AGG[col_agg_str]
+            self._agg = self._func_by_agg[col_agg_str]
         except KeyError:
             self._logger.exception("Agg error")
 
@@ -416,8 +408,14 @@ class ColumnTransformationParser:
 class TransformationParser:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, risky: bool):
+    def __init__(self, risky: bool, func_by_type, func_by_agg, binop_by_name,
+                 prefix_unop_by_name, infix_unop_by_name):
         self._risky = risky
+        self._func_by_type = func_by_type
+        self._func_by_agg = func_by_agg
+        self._binop_by_name = binop_by_name
+        self._prefix_unop_by_name = prefix_unop_by_name
+        self._infix_unop_by_name = infix_unop_by_name
         self._main_filter = true_func
         self._default_column_transformation = DefaultColumnTransformation(True,
                                                                           False)
@@ -428,7 +426,7 @@ class TransformationParser:
 
     def parse(self, json_transformation: JSONValue) -> Transformation:
         try:
-            self._parse_main_filter(json_transformation["filter"])
+            self._parse_main_filter(json_transformation["main_filter"])
         except KeyError:
             pass
         default_col = json_transformation.get("default_col", {})
@@ -438,7 +436,11 @@ class TransformationParser:
         for name, col in cols.items():
             self._col_transformation_by_name[
                 name] = ColumnTransformationParser(
-                self._risky, self._default_column_transformation).parse(col)
+                self._risky,
+                self._binop_by_name, self._prefix_unop_by_name,
+                self._infix_unop_by_name,
+                self._func_by_type, self._func_by_agg,
+                self._default_column_transformation).parse(col)
 
         extra = json_transformation.get("extra", {})
         self._parse_extra(extra)
@@ -452,7 +454,9 @@ class TransformationParser:
         if self._risky:
             self._main_filter = RiskyMainFilterParser().parse(main_filter_str)
         else:
-            self._main_filter = MainFilterParser().parse(main_filter_str)
+            self._main_filter = MainFilterParser(
+                self._binop_by_name, self._prefix_unop_by_name,
+                self._infix_unop_by_name).parse(main_filter_str)
 
     def _parse_default_col(self, defaut_col: JSONValue):
         self._default_column_transformation = DefaultColumnTransformationParser().parse(
@@ -461,47 +465,6 @@ class TransformationParser:
     def _parse_extra(self, extra: JSONValue):
         self._extra_count = extra.get("count", -1)
         self._extra_prefix = extra.get("prefix", "extra")
-
-
-def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
-         risky=False, limit=None):
-    transformation = TransformationParser(risky).parse(transformation_dict)
-
-    in_encoding = csv_in.pop("encoding", "utf-8")
-    in_path = csv_in.pop("path")
-    out_encoding = csv_out.pop("encoding", "utf-8")
-    out_path = csv_out.pop("path")
-    with in_path.open("r", encoding=in_encoding) as s, \
-            out_path.open("w", encoding=out_encoding, newline="") as d:
-        writer = csv.writer(d, **csv_out)
-        reader = csv.reader(s, **csv_in)
-        header = next(reader)
-        clean_header = transformation.add_fields(header)
-        clean_header = improve_header(clean_header)
-
-        # write file header
-        col_renames = transformation.file_header(clean_header)
-        writer.writerow(col_renames)
-
-        # the id header
-        col_ids = transformation.col_ids(clean_header)
-        visible_col_ids = transformation.visible_col_ids(clean_header)
-
-        if transformation.has_agg():
-            for row in itertools.islice(reader, limit):
-                value_by_id = dict(zip(col_ids, row))
-                transformation.take_or_ignore(value_by_id)
-
-            for value_by_id in transformation.agg_rows():
-                writer.writerow(
-                    [value_by_id.get(i, "") for i in visible_col_ids])
-        else:
-            for row in itertools.islice(reader, limit):
-                value_by_id = dict(zip(col_ids, row))
-                value_by_id = transformation.transform(value_by_id)
-                if value_by_id is not None:
-                    writer.writerow(
-                        [value_by_id.get(i, "") for i in visible_col_ids])
 
 
 SUFFIX_REGEX = re.compile(r"^(.*)_(\d+)$")
@@ -528,18 +491,6 @@ def improve_header(header: List[str]) -> List[str]:
         new_header.append(f)
         seen.add(f)
     return new_header
-
-
-SPACE_REGEX = re.compile(r"\s+")
-
-
-def normalize(s: str) -> str:
-    import unicodedata
-    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode(
-        'ascii')
-    s = SPACE_REGEX.sub("_", s)
-    s = s.lower()
-    return s
 
 
 def add_fields(fields, prefix="extra", total=1024):
