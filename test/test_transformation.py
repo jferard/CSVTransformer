@@ -250,239 +250,245 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
             }
         }, csv_in_string, csv_out_string)
 
-        #### COMPLEX
+    #### COMPLEX
 
-        def test_transform_without_agg_and_filter(self):
-            csv_in_string = "a\n1\n3"
-            csv_out_string = "A\r\n3\r\n"
+    def test_transform_without_agg_and_filter(self):
+        csv_in_string = "a\n1\n3"
+        csv_out_string = "A\r\n3\r\n"
 
-            self._test_transformation({
-                "cols": {
-                    "a": {
-                        "visible": True,
-                        "rename": "A",
-                        "filter": "int(it) > 2"
-                    }
+        self._test_transformation({
+            "cols": {
+                "a": {
+                    "visible": True,
+                    "rename": "A",
+                    "filter": "int(it) > 2"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-    class CSVTransformerAggTestCase(CSVTransformerTestCase):
-        def test_sum(self):
-            csv_in_string = "À demain, été comme hiver\n1,2\n1,3"
-            csv_out_string = "a_demain,ete_comme_hiver\r\n1,5.0\r\n"
 
-            self._test_transformation({
-                "default_col": {"normalize": True},
-                "cols": {
-                    "ete_comme_hiver": {
-                        "type": "float(it)",
-                        "agg": "sum"
-                    }
+class CSVTransformerAggTestCase(CSVTransformerTestCase):
+    def test_sum(self):
+        csv_in_string = "À demain, été comme hiver\n1,2\n1,3"
+        csv_out_string = "a_demain,ete_comme_hiver\r\n1,5.0\r\n"
+
+        self._test_transformation({
+            "default_col": {"normalize": True},
+            "cols": {
+                "ete_comme_hiver": {
+                    "type": "float(it)",
+                    "agg": "sum"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-        def test_string_agg(self):
-            csv_in_string = "a,b\n1,2\n1,3"
-            csv_out_string = "a,b\r\n1,\"2.0, 3.0\"\r\n"
+    def test_string_agg(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "a,b\r\n1,\"2.0, 3.0\"\r\n"
 
-            self._test_transformation({
-                "cols": {
-                    "b": {
-                        "type": "float(it)",
-                        "agg": "string_agg"
-                    }
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "string_agg"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-        def test_duplicate(self):
-            csv_in_string = "a,a\n1,2\n1,3"
-            csv_out_string = "a_1,a_2\r\n1,\"2.0, 3.0\"\r\n"
+    def test_duplicate(self):
+        csv_in_string = "a,a\n1,2\n1,3"
+        csv_out_string = "a_1,a_2\r\n1,\"2.0, 3.0\"\r\n"
 
-            self._test_transformation({
-                "cols": {
-                    "a_2": {
-                        "type": "float(it)",
-                        "agg": "string_agg"
-                    }
+        self._test_transformation({
+            "cols": {
+                "a_2": {
+                    "type": "float(it)",
+                    "agg": "string_agg"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-        def test_string_sum(self):
-            csv_in_string = "a,b\n1,2\n1,3"
-            csv_out_string = "a,b\r\n1,5.0\r\n"
+    def test_string_sum(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "a,b\r\n1,5.0\r\n"
 
-            self._test_transformation({
-                "cols": {
-                    "b": {
-                        "type": "float(it)",
-                        "agg": "sum"
-                    }
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "sum"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-        def test_agg(self):
-            csv_in_string = "a,b\n1,2\n1,3"
-            csv_out_string = "b\r\n5.0\r\n"
+    def test_agg(self):
+        csv_in_string = "a,b\n1,2\n1,3"
+        csv_out_string = "b\r\n5.0\r\n"
 
-            self._test_transformation({
-                "default_col": {"visible": False},
-                "cols": {
-                    "b": {
-                        "visible": True,
-                        "type": "float(it)",
-                        "agg": "sum"
-                    }
+        self._test_transformation({
+            "default_col": {"visible": False},
+            "cols": {
+                "b": {
+                    "visible": True,
+                    "type": "float(it)",
+                    "agg": "sum"
                 }
-            }, csv_in_string, csv_out_string)
+            }
+        }, csv_in_string, csv_out_string)
 
-        def test_extra(self):
-            csv_in_string = "a\n1,2,3\n4,5,6"
-            csv_out_string = "a,ex_1,ex_2,ex_3\r\n5.0,7.0,9.0,\r\n"
+    def test_extra(self):
+        csv_in_string = "a\n1,2,3\n4,5,6"
+        csv_out_string = "a,ex_1,ex_2,ex_3\r\n5.0,7.0,9.0,\r\n"
 
-            self._test_transformation({
-                "cols": {
-                    "a": {
-                        "type": "float(it)",
-                        "agg": "sum"
-                    },
-                    "ex_1": {
-                        "type": "float(it)",
-                        "agg": "sum"
-                    },
-                    "ex_2": {
-                        "type": "float(it)",
-                        "agg": "sum"
-                    }
+        self._test_transformation({
+            "cols": {
+                "a": {
+                    "type": "float(it)",
+                    "agg": "sum"
                 },
-                "extra": {"prefix": "ex", "count": 4}
-            }, csv_in_string, csv_out_string)
+                "ex_1": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                },
+                "ex_2": {
+                    "type": "float(it)",
+                    "agg": "sum"
+                }
+            },
+            "extra": {"prefix": "ex", "count": 4}
+        }, csv_in_string, csv_out_string)
 
-    class CSVTransformerParserTestCase(unittest.TestCase):
-        def test_err_col_type(self):
-            transformation_dict = {
-                "cols": {
-                    "a": {
-                        "type": "INT"
-                    }
+
+class CSVTransformerParserTestCase(unittest.TestCase):
+    def test_err_col_type(self):
+        transformation_dict = {
+            "cols": {
+                "a": {
+                    "type": "INT"
                 }
             }
-            transformation = TransformationParser(
-                False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
-                PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
-                transformation_dict)
-            ct = transformation._col_transformation_by_name['a']
-            with self.assertRaises(KeyError):
-                ct.type_value("2")
+        }
+        transformation = TransformationParser(
+            False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
+            transformation_dict)
+        ct = transformation._col_transformation_by_name['a']
+        with self.assertRaises(KeyError):
+            ct.type_value("2")
 
-        def test_err_col_agg(self):
-            transformation_dict = {
-                "cols": {
-                    "a": {
-                        "agg": "FOO"
-                    }
+    def test_err_col_agg(self):
+        transformation_dict = {
+            "cols": {
+                "a": {
+                    "agg": "FOO"
                 }
             }
-            transformation = TransformationParser(
-                False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
-                PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
-                transformation_dict)
-            self.assertFalse(transformation.has_agg())
+        }
+        transformation = TransformationParser(
+            False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
+            transformation_dict)
+        self.assertFalse(transformation.has_agg())
 
-    class CSVTransformerIntegrationTestCase(unittest.TestCase):
-        def test_transform1(self):
-            csv_in = {"encoding": "utf-8", "path": (
-                    FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
-            csv_out = {"path": FIXTURE_PATH / "test.csv"}
-            transformation_dict = {
-                "main_filter": "date_lien_succ > date('2000-01-01')",
-                "default_col": {"visible": False},
-                "cols": {
-                    "siretEtablissementSuccesseur": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "mean",
-                        "rename": "Avg siretSuccesseur"
-                    },
-                    "dateLienSuccession": {
-                        "visible": True,
-                        "type": "date",
-                        "id": "date_lien_succ",
-                    },
-                }
+
+class CSVTransformerIntegrationTestCase(unittest.TestCase):
+    def test_transform1(self):
+        csv_in = {"encoding": "utf-8", "path": (
+                FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
+        csv_out = {"path": FIXTURE_PATH / "test.csv"}
+        transformation_dict = {
+            "main_filter": "date_lien_succ > date('2000-01-01')",
+            "default_col": {"visible": False},
+            "cols": {
+                "siretEtablissementSuccesseur": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "mean",
+                    "rename": "Avg siretSuccesseur"
+                },
+                "dateLienSuccession": {
+                    "visible": True,
+                    "type": "date",
+                    "id": "date_lien_succ",
+                },
             }
-            main(csv_in, transformation_dict, csv_out)
+        }
+        main(csv_in, transformation_dict, csv_out)
 
-        def test_transform2(self):
-            csv_in = {"encoding": "latin-1", "path": (
-                    FIXTURE_PATH / "resultats-par-niveau-cirlg-t1-france-entiere.txt"),
-                      "delimiter": ";"
-                      }
-            csv_out = {"path": FIXTURE_PATH / "test.csv"}
-            transformation_dict = {
-                "default_col": {"visible": False},
-                "cols": {
-                    "Code de la circonscription": {
-                        "visible": True,
-                        "agg": "count",
-                        "rename": "Nombre de circonscriptions"
-                    }, "Inscrits": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                    "Abstentions": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                    "Votants": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                    "Blancs": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                    "Nuls": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                    "Exprimés": {
-                        "visible": True,
-                        "type": "int",
-                        "agg": "sum"
-                    },
-                }
+    def test_transform2(self):
+        csv_in = {"encoding": "latin-1", "path": (
+                FIXTURE_PATH / "resultats-par-niveau-cirlg-t1-france-entiere.txt"),
+                  "delimiter": ";"
+                  }
+        csv_out = {"path": FIXTURE_PATH / "test.csv"}
+        transformation_dict = {
+            "default_col": {"visible": False},
+            "cols": {
+                "Code de la circonscription": {
+                    "visible": True,
+                    "agg": "count",
+                    "rename": "Nombre de circonscriptions"
+                }, "Inscrits": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Abstentions": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Votants": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Blancs": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Nuls": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
+                "Exprimés": {
+                    "visible": True,
+                    "type": "int",
+                    "agg": "sum"
+                },
             }
-            main(csv_in, transformation_dict, csv_out)
+        }
+        main(csv_in, transformation_dict, csv_out)
 
-    class ExpressionParserTestCase(unittest.TestCase):
-        def test_func(self):
-            f = ExpressionParser(BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
-                                 INFIX_UNOP_BY_NAME).parse("it * 2")
-            self.assertEqual(6, f(3))
 
-    class HeaderTestCase(unittest.TestCase):
-        def test_improve(self):
-            self.assertEqual(["a_1", "a_2", "a_3"],
-                             improve_header(["a", "a", "a"]))
-            self.assertEqual(["a_2", "a_1", "a_3"],
-                             improve_header(["a", "a_1", "a"]))
-            self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"],
-                             improve_header(["a", "", "b", "", "a", ""]))
+class ExpressionParserTestCase(unittest.TestCase):
+    def test_func(self):
+        f = ExpressionParser(BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                             INFIX_UNOP_BY_NAME).parse("it * 2")
+        self.assertEqual(6, f(3))
 
-        def test_add_fields(self):
-            self.assertEqual(
-                ['a', 'b', 'c', 'extra_1', 'extra_2', 'extra_3', 'extra_4',
-                 'extra_5'], add_fields(["a", "b", "c"], total=8))
-            self.assertEqual(["a", "b", "c"],
-                             add_fields(["a", "b", "c"], total=2))
 
-        def test_normalize(self):
-            self.assertEqual("un_test_effectue", normalize("Un Test  Effectué"))
+class HeaderTestCase(unittest.TestCase):
+    def test_improve(self):
+        self.assertEqual(["a_1", "a_2", "a_3"],
+                         improve_header(["a", "a", "a"]))
+        self.assertEqual(["a_2", "a_1", "a_3"],
+                         improve_header(["a", "a_1", "a"]))
+        self.assertEqual(["a_1", "_1", "b", "_2", "a_2", "_3"],
+                         improve_header(["a", "", "b", "", "a", ""]))
 
-    if __name__ == '__main__':
-        unittest.main()
+    def test_add_fields(self):
+        self.assertEqual(
+            ['a', 'b', 'c', 'extra_1', 'extra_2', 'extra_3', 'extra_4',
+             'extra_5'], add_fields(["a", "b", "c"], total=8))
+        self.assertEqual(["a", "b", "c"],
+                         add_fields(["a", "b", "c"], total=2))
+
+    def test_normalize(self):
+        self.assertEqual("un_test_effectue", normalize("Un Test  Effectué"))
+
+
+if __name__ == '__main__':
+    unittest.main()
