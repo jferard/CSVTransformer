@@ -9,11 +9,13 @@ This is a POC. See tests to understand the goal of the library.
 ## Format of the transformation dict
 All entries are optional.
 
-### The main filter
+### The entity filter
 Format :
 ```
 "entity_filter" : <an expression using columns ids>
 ```
+
+This filter lines before aggregating them.
 
 ### The default column transformation
 Format :
@@ -36,22 +38,53 @@ Format :
 }
 ```
 
-### A column transformation
+#### A column transformation
 Format :
 ```
 "<col name>": {
     "visible": <bool: default True>
+    "id"
     "type": <int|float_iso|float|float_iso|date|date_iso|<expression>>
     "filter"
     "map"
     "rename"
-    "id"
     "agg"
 }
 ```
 
 * `"visible"`: means that the column is visible.
 * `"type"`: the name of a type, or an expression
+
+### The new columns (TODO)
+Format :
+```
+"new_cols" : {
+    "<col name>": <new col>,
+    ...
+}
+```
+
+### A new column (TODO)
+Format :
+```
+"<col name>": {
+    "visible": <bool: default True>
+    "id"
+    "filter"
+    "formula"
+    "rename"
+    "agg"
+}
+```
+
+
+### The aggregate filter (TODO)
+Format :
+```
+"agg_filter" : <an expression using columns ids>
+```
+
+Filters after aggregation.
 
 ## Expressions
 ### Data Types
