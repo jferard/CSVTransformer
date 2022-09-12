@@ -80,32 +80,32 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
         self._test_transformation({
         }, csv_in_string, csv_out_string)
 
-    def test_main_filter(self):
+    def test_entity_filter(self):
         csv_in_string = "a,b\n1,2\n3,2\n1,1"
         csv_out_string = "a,b\r\n3,2\r\n1,1\r\n"
 
         self._test_transformation({
-            "main_filter": "a >= b"
+            "entity_filter": "a >= b"
         }, csv_in_string, csv_out_string)
 
-    def test_main_filter_ids1(self):
+    def test_entity_filter_ids1(self):
         csv_in_string = "a,b\n1,2\n3,2\n1,1"
         csv_out_string = "a,b\r\n3,2\r\n1,1\r\n"
 
         self._test_transformation({
-            "main_filter": "Y >= Z",
+            "entity_filter": "Y >= Z",
             "cols": {
                 "a": {"id": "Y"},
                 "b": {"id": "Z"},
             }
         }, csv_in_string, csv_out_string)
 
-    def test_main_filter_ids2(self):
+    def test_entity_filter_ids2(self):
         csv_in_string = "a,b\n1,2\n3,2\n1,1"
         csv_out_string = "a,b\r\n1,2\r\n"
 
         self._test_transformation({
-            "main_filter": "Y < Z",
+            "entity_filter": "Y < Z",
             "cols": {
                 "a": {"id": "Y"},
                 "b": {"id": "Z"},
@@ -241,7 +241,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
         csv_out_string = "a\r\n1\r\n2\r\n"
 
         self._test_transformation({
-            "main_filter": "COL_A < 5",
+            "entity_filter": "COL_A < 5",
             "cols": {
                 "a": {
                     "type": "int",
@@ -397,7 +397,7 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
                 FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
         csv_out = {"path": FIXTURE_PATH / "test.csv"}
         transformation_dict = {
-            "main_filter": "date_lien_succ > date('2000-01-01')",
+            "entity_filter": "date_lien_succ > date('2000-01-01')",
             "default_col": {"visible": False},
             "cols": {
                 "siretEtablissementSuccesseur": {

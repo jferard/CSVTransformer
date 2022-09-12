@@ -12,7 +12,7 @@ All entries are optional.
 ### The main filter
 Format :
 ```
-"main_filter" : <an expression using columns ids>
+"entity_filter" : <an expression using columns ids>
 ```
 
 ### The default column transformation

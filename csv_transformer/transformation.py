@@ -96,11 +96,11 @@ class ColumnTransformation:
 
 
 class Transformation:
-    def __init__(self, main_filter: MainFilter,
+    def __init__(self, entity_filter: MainFilter,
                  default_column_transformation: DefaultColumnTransformation,
                  col_transformation_by_name: Dict[str, ColumnTransformation],
                  extra_prefix: str, extra_count: int):
-        self._main_filter = main_filter
+        self._entity_filter = entity_filter
         self._default_column_transformation = default_column_transformation
         self._col_transformation_by_name = col_transformation_by_name
         self._col_transformation_by_id = {self._col_id(n): v for n, v in
@@ -148,7 +148,7 @@ class Transformation:
             return value
 
     def _filter(self, typed_value_by_id: TypedRow) -> bool:
-        if self._main_filter(typed_value_by_id):
+        if self._entity_filter(typed_value_by_id):
             return all(
                 self._col_filter(col_id, value) for col_id, value in
                 typed_value_by_id.items())
@@ -241,8 +241,8 @@ class MainFilterParser:
         self.prefix_unop_by_name = prefix_unop_by_name
         self.infix_unop_by_name = infix_unop_by_name
 
-    def parse(self, main_filter_str: str) -> MainFilter:
-        tokens = tokenize_expr(main_filter_str)
+    def parse(self, entity_filter_str: str) -> MainFilter:
+        tokens = tokenize_expr(entity_filter_str)
         tokens = ShuntingYard(False, self.binop_by_name,
                               self.prefix_unop_by_name,
                               self.infix_unop_by_name).process(tokens)
@@ -252,8 +252,8 @@ class MainFilterParser:
 class RiskyMainFilterParser:
     _logger = logging.getLogger(__name__)
 
-    def parse(self, main_filter_str: str) -> MainFilter:
-        return lambda r: eval(main_filter_str, {}, r)
+    def parse(self, entity_filter_str: str) -> MainFilter:
+        return lambda r: eval(entity_filter_str, {}, r)
 
 
 class ExpressionParser:
@@ -416,7 +416,7 @@ class TransformationParser:
         self._binop_by_name = binop_by_name
         self._prefix_unop_by_name = prefix_unop_by_name
         self._infix_unop_by_name = infix_unop_by_name
-        self._main_filter = true_func
+        self._entity_filter = true_func
         self._default_column_transformation = DefaultColumnTransformation(True,
                                                                           False)
         self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
@@ -426,7 +426,7 @@ class TransformationParser:
 
     def parse(self, json_transformation: JSONValue) -> Transformation:
         try:
-            self._parse_main_filter(json_transformation["main_filter"])
+            self._parse_entity_filter(json_transformation["entity_filter"])
         except KeyError:
             pass
         default_col = json_transformation.get("default_col", {})
@@ -445,18 +445,18 @@ class TransformationParser:
         extra = json_transformation.get("extra", {})
         self._parse_extra(extra)
 
-        return Transformation(self._main_filter,
+        return Transformation(self._entity_filter,
                               self._default_column_transformation,
                               self._col_transformation_by_name,
                               self._extra_prefix, self._extra_count)
 
-    def _parse_main_filter(self, main_filter_str: str):
+    def _parse_entity_filter(self, entity_filter_str: str):
         if self._risky:
-            self._main_filter = RiskyMainFilterParser().parse(main_filter_str)
+            self._entity_filter = RiskyMainFilterParser().parse(entity_filter_str)
         else:
-            self._main_filter = MainFilterParser(
+            self._entity_filter = MainFilterParser(
                 self._binop_by_name, self._prefix_unop_by_name,
-                self._infix_unop_by_name).parse(main_filter_str)
+                self._infix_unop_by_name).parse(entity_filter_str)
 
     def _parse_default_col(self, defaut_col: JSONValue):
         self._default_column_transformation = DefaultColumnTransformationParser().parse(
