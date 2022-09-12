@@ -22,14 +22,15 @@ from csv_transformer.en_functions import (
     FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
     INFIX_UNOP_BY_NAME)
 from csv_transformer.transformation import (
-    TransformationParser, improve_header, JSONValue)
+    TransformationParser, improve_header, JSONValue, ParserFactory)
 
 
 def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
          risky=False, limit=None):
-    trans = TransformationParser(
+    parser_factory = ParserFactory(
         risky, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
-        INFIX_UNOP_BY_NAME).parse(transformation_dict)
+        INFIX_UNOP_BY_NAME)
+    trans = parser_factory.transformation_parser().parse(transformation_dict)
 
     in_encoding = csv_in.pop("encoding", "utf-8")
     in_path = csv_in.pop("path")

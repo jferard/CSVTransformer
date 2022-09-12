@@ -368,10 +368,10 @@ class CSVTransformerParserTestCase(unittest.TestCase):
                 }
             }
         }
-        transformation = TransformationParser(
+        transformation = ParserFactory(
             False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
-            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
-            transformation_dict)
+            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
+        ).transformation_parser().parse(transformation_dict)
         ct = transformation._col_transformation_by_name['a']
         with self.assertRaises(KeyError):
             ct.type_value("2")
@@ -384,10 +384,10 @@ class CSVTransformerParserTestCase(unittest.TestCase):
                 }
             }
         }
-        transformation = TransformationParser(
+        transformation = ParserFactory(
             False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
-            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME).parse(
-            transformation_dict)
+            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
+        ).transformation_parser().parse(transformation_dict)
         self.assertFalse(transformation.has_agg())
 
 

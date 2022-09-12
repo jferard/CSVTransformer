@@ -232,7 +232,7 @@ class Transformation:
             return value
 
 
-class MainFilterParser:
+class EntityFilterParser:
     _logger = logging.getLogger(__name__)
 
     def __init__(self, binop_by_name, prefix_unop_by_name,
@@ -249,7 +249,7 @@ class MainFilterParser:
         return lambda r: evaluate(tokens, r)
 
 
-class RiskyMainFilterParser:
+class RiskyEntityFilterParser:
     _logger = logging.getLogger(__name__)
 
     def parse(self, entity_filter_str: str) -> MainFilter:
@@ -296,16 +296,9 @@ class DefaultColumnTransformationParser:
 class ColumnTransformationParser:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, risky: bool,
-                 binop_by_name, prefix_unop_by_name, infix_unop_by_name,
-                 func_by_type, func_by_agg,
+    def __init__(self, parser_factory: "ParserFactory",
                  default_column_transformation: DefaultColumnTransformation):
-        self._risky = risky
-        self._binop_by_name = binop_by_name
-        self._prefix_unop_by_name = prefix_unop_by_name
-        self._infix_unop_by_name = infix_unop_by_name
-        self._func_by_agg = func_by_agg
-        self._func_by_type = func_by_type
+        self._parser_factory = parser_factory
         self._default_column_transformation = default_column_transformation
         self._visible = default_column_transformation.is_visible()
         self._type = id_func
@@ -370,31 +363,22 @@ class ColumnTransformationParser:
 
     def _parse_col_type(self, col_type_str: str):
         try:
-            self._type = self._func_by_type[col_type_str]
+            self._type = self._parser_factory.func_by_type(col_type_str)
         except KeyError:
-            parser = self._get_parser()
+            parser = self._parser_factory.expression_parser()
             self._type = parser.parse(col_type_str)
 
     def _parse_col_filter(self, col_filter_str: str):
-        parser = self._get_parser()
+        parser = self._parser_factory.expression_parser()
         self._filter = parser.parse(col_filter_str)
 
-    def _get_parser(self):
-        if self._risky:
-            parser = RiskyExpressionParser()
-        else:
-            parser = ExpressionParser(self._binop_by_name,
-                                      self._prefix_unop_by_name,
-                                      self._infix_unop_by_name)
-        return parser
-
     def _parse_col_map(self, col_map_str: str):
-        parser = self._get_parser()
+        parser = self._parser_factory.expression_parser()
         self._map = parser.parse(col_map_str)
 
     def _parse_col_agg(self, col_agg_str: str):
         try:
-            self._agg = self._func_by_agg[col_agg_str]
+            self._agg = self._parser_factory.func_by_agg(col_agg_str)
         except KeyError:
             self._logger.exception("Agg error")
 
@@ -408,17 +392,11 @@ class ColumnTransformationParser:
 class TransformationParser:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, risky: bool, func_by_type, func_by_agg, binop_by_name,
-                 prefix_unop_by_name, infix_unop_by_name):
-        self._risky = risky
-        self._func_by_type = func_by_type
-        self._func_by_agg = func_by_agg
-        self._binop_by_name = binop_by_name
-        self._prefix_unop_by_name = prefix_unop_by_name
-        self._infix_unop_by_name = infix_unop_by_name
+    def __init__(self, parser_factory: "ParserFactory"):
+        self._parser_factory = parser_factory
         self._entity_filter = true_func
-        self._default_column_transformation = DefaultColumnTransformation(True,
-                                                                          False)
+        self._default_column_transformation = DefaultColumnTransformation(
+            True, False)
         self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
                                                 {})
         self._extra_prefix = "extra"
@@ -435,12 +413,14 @@ class TransformationParser:
         cols = json_transformation.get("cols", {})
         for name, col in cols.items():
             self._col_transformation_by_name[
-                name] = ColumnTransformationParser(
-                self._risky,
-                self._binop_by_name, self._prefix_unop_by_name,
-                self._infix_unop_by_name,
-                self._func_by_type, self._func_by_agg,
+                name] = self._parser_factory.column_transformation_parser(
                 self._default_column_transformation).parse(col)
+
+        new_cols = json_transformation.get("new_cols", {})
+        for name, new_col in new_cols.items():
+            self._col_transformation_by_name[
+                name] = self._parser_factory.new_column_transformation_parser(
+                self._default_column_transformation).parse(new_col)
 
         extra = json_transformation.get("extra", {})
         self._parse_extra(extra)
@@ -451,12 +431,8 @@ class TransformationParser:
                               self._extra_prefix, self._extra_count)
 
     def _parse_entity_filter(self, entity_filter_str: str):
-        if self._risky:
-            self._entity_filter = RiskyMainFilterParser().parse(entity_filter_str)
-        else:
-            self._entity_filter = MainFilterParser(
-                self._binop_by_name, self._prefix_unop_by_name,
-                self._infix_unop_by_name).parse(entity_filter_str)
+        parser = self._parser_factory.entity_filter()
+        self._entity_filter = parser.parse(entity_filter_str)
 
     def _parse_default_col(self, defaut_col: JSONValue):
         self._default_column_transformation = DefaultColumnTransformationParser().parse(
@@ -465,6 +441,54 @@ class TransformationParser:
     def _parse_extra(self, extra: JSONValue):
         self._extra_count = extra.get("count", -1)
         self._extra_prefix = extra.get("prefix", "extra")
+
+
+class ParserFactory:
+    def __init__(self, risky: bool, func_by_type, func_by_agg, binop_by_name,
+                 prefix_unop_by_name, infix_unop_by_name):
+        self._risky = risky
+        self._func_by_type = func_by_type
+        self._func_by_agg = func_by_agg
+        self._binop_by_name = binop_by_name
+        self._prefix_unop_by_name = prefix_unop_by_name
+        self._infix_unop_by_name = infix_unop_by_name
+
+    def func_by_type(self, col_type_str: str) -> ColType:
+        return self._func_by_type[col_type_str]
+
+    def func_by_agg(self, col_agg_str: str) -> ColAgg:
+        return self._func_by_agg[col_agg_str]
+
+    def transformation_parser(self) -> TransformationParser:
+        return TransformationParser(self)
+
+    def column_transformation_parser(
+            self, default_column_transformation: DefaultColumnTransformation
+    ) -> ColumnTransformationParser:
+        return ColumnTransformationParser(self, default_column_transformation)
+
+    def new_column_transformation_parser(
+            self, default_column_transformation: DefaultColumnTransformation
+    ) -> ColumnTransformationParser:
+        return ColumnTransformationParser(self, default_column_transformation)
+
+    def entity_filter(self) -> Union[
+        RiskyEntityFilterParser, EntityFilterParser]:
+        if self._risky:
+            return RiskyEntityFilterParser()
+        else:
+            return EntityFilterParser(
+                self._binop_by_name, self._prefix_unop_by_name,
+                self._infix_unop_by_name)
+
+    def expression_parser(self) -> Union[
+        RiskyExpressionParser, ExpressionParser]:
+        if self._risky:
+            return RiskyExpressionParser()
+        else:
+            return ExpressionParser(self._binop_by_name,
+                                    self._prefix_unop_by_name,
+                                    self._infix_unop_by_name)
 
 
 SUFFIX_REGEX = re.compile(r"^(.*)_(\d+)$")
