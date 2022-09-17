@@ -121,7 +121,10 @@ def str_to_datetime(s: str) -> dt.datetime:
         except ValueError:
             pass
 
-    return dt.datetime.fromisoformat(s)
+    try:
+        return dt.datetime.fromisoformat(s)
+    except:
+        return dt.datetime.strptime(s, "%Y-%m-%d")
 
 
 def str_to_date(s: str) -> dt.date:
@@ -146,6 +149,8 @@ def id_func(x: Any) -> Any: return x
 
 
 def true_func(_x: Any) -> Any: return True
+
+def empty_string_func(*_x: Any) -> Any: return ""
 
 
 def normalize(s: str) -> str:

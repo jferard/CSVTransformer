@@ -19,7 +19,13 @@
 import tokenize
 from abc import ABC
 from io import BytesIO
-from token import ENCODING, NUMBER, STRING, NEWLINE, ENDMARKER, NAME, OP
+from token import NUMBER, STRING, NEWLINE, ENDMARKER, NAME, OP
+
+try:
+    from token import ENCODING
+except:
+    ENCODING = 59
+
 from typing import (Any, Callable, Iterator, List, Mapping, Optional, Union)
 
 
