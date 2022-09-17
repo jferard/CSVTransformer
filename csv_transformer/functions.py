@@ -26,7 +26,7 @@ IntoDatetime = IntoDate
 
 def to_date(v: IntoDate) -> dt.date:
     if isinstance(v, str):
-        return dt.date.fromisoformat(v)
+        return date_fromisoformat(v)
     elif isinstance(v, dt.datetime):
         return v.date()
     elif isinstance(v, dt.date):
@@ -37,7 +37,7 @@ def to_date(v: IntoDate) -> dt.date:
 
 def to_datetime(v: IntoDatetime) -> dt.datetime:
     if isinstance(v, str):
-        return dt.datetime.fromisoformat(v)
+        return datetime_fromisoformat(v)
     elif isinstance(v, dt.datetime):
         return v
     elif isinstance(v, dt.date):
@@ -121,10 +121,19 @@ def str_to_datetime(s: str) -> dt.datetime:
         except ValueError:
             pass
 
+    return datetime_fromisoformat(s)
+
+def datetime_fromisoformat(s: str) -> dt.datetime:
     try:
         return dt.datetime.fromisoformat(s)
     except:
-        return dt.datetime.strptime(s, "%Y-%m-%d")
+        return dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+
+def date_fromisoformat(s: str) -> dt.date:
+    try:
+        return dt.date.fromisoformat(s)
+    except:
+        return dt.datetime.strptime(s, "%Y-%m-%d").date()
 
 
 def str_to_date(s: str) -> dt.date:
@@ -134,7 +143,7 @@ def str_to_date(s: str) -> dt.date:
         except ValueError:
             pass
 
-    return dt.date.fromisoformat(s)
+    return date_fromisoformat(s)
 
 
 def str_to_float(s: str) -> float:

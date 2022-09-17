@@ -24,7 +24,8 @@ import statistics
 
 from csv_transformer.simple_eval import Function, PrefixUnOp, BinOp
 from csv_transformer.functions import to_date, to_datetime, to_date_or_datetime, \
-    add_years, add_months, age, case, str_to_float, str_to_date, str_to_datetime
+    add_years, add_months, age, case, str_to_float, str_to_date, \
+    str_to_datetime, datetime_fromisoformat, date_fromisoformat
 
 BINOP_BY_NAME = {
     f.name: f for f in [
@@ -161,7 +162,7 @@ FUNC_BY_TYPE = {
     "float": str_to_float,
     "float_us": float,
     "date": str_to_date,
-    "date_iso": dt.date.fromisoformat,
+    "date_iso": date_fromisoformat,
     "datetime": str_to_datetime,
-    "datetime_iso": dt.datetime.fromisoformat
+    "datetime_iso": datetime_fromisoformat
 }
