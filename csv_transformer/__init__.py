@@ -22,15 +22,15 @@ from csv_transformer.en_functions import (
     FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
     INFIX_UNOP_BY_NAME)
 from csv_transformer.transformation import (
-    TransformationParser, improve_header, JSONValue, ParserFactory)
+    TransformationJsonParser, improve_header, JSONValue, TransformationBuilder)
 
 
 def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
          risky=False, limit=None):
-    parser_factory = ParserFactory(
+    transformation_builder = TransformationBuilder(
         risky, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
         INFIX_UNOP_BY_NAME)
-    trans = parser_factory.transformation_parser().parse(transformation_dict)
+    trans = TransformationJsonParser(transformation_builder).parse(transformation_dict)
 
     in_encoding = csv_in.pop("encoding", "utf-8")
     in_path = csv_in.pop("path")
@@ -58,8 +58,9 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
                 trans.take_or_ignore(value_by_id)
 
             for value_by_id in trans.agg_rows():
-                writer.writerow(
-                    [value_by_id.get(i, "") for i in visible_col_ids])
+                if trans.agg_filter(value_by_id):
+                    writer.writerow(
+                        [value_by_id.get(i, "") for i in visible_col_ids])
         else:
             for row in itertools.islice(reader, limit):
                 value_by_id = dict(zip(col_ids, row))

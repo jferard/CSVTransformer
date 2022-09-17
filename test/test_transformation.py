@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from csv_transformer import main
+from csv_transformer import main, TransformationJsonParser
 
 FIXTURE_PATH = Path(__file__).parent / "fixture"
 
@@ -368,10 +368,12 @@ class CSVTransformerParserTestCase(unittest.TestCase):
                 }
             }
         }
-        transformation = ParserFactory(
+        factory = TransformationBuilder(
             False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
-        ).transformation_parser().parse(transformation_dict)
+        )
+        transformation = TransformationJsonParser(
+            factory).parse(transformation_dict)
         ct = transformation._col_transformation_by_name['a']
         with self.assertRaises(KeyError):
             ct.type_value("2")
@@ -384,10 +386,12 @@ class CSVTransformerParserTestCase(unittest.TestCase):
                 }
             }
         }
-        transformation = ParserFactory(
+        factory = TransformationBuilder(
             False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
-        ).transformation_parser().parse(transformation_dict)
+        )
+        transformation = TransformationJsonParser(
+            factory).parse(transformation_dict)
         self.assertFalse(transformation.has_agg())
 
 
