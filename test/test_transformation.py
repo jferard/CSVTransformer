@@ -42,6 +42,11 @@ class CSVTransformerTestCase(unittest.TestCase):
 
     def _test_regular_transformation(self, transformation_dict, csv_in_string,
                                      csv_out_string):
+        ret = self._apply_regular_transformation(transformation_dict,
+                                                 csv_in_string)
+        self.assertEqual(csv_out_string, ret)
+
+    def _apply_regular_transformation(self, transformation_dict, csv_in_string):
         csv_in_path = mock.Mock()
         csv_in_path.open.side_effect = [io.StringIO(csv_in_string)]
         csv_out_path = mock.Mock()
@@ -54,7 +59,8 @@ class CSVTransformerTestCase(unittest.TestCase):
         csv_out = {"path": csv_out_path}
         transformation_dict = transformation_dict
         main(csv_in, transformation_dict, csv_out)
-        self.assertEqual(csv_out_string, csv_out_file.getvalue())
+        ret = csv_out_file.getvalue()
+        return ret
 
     def _test_risky_transformation(self, transformation_dict, csv_in_string,
                                    csv_out_string):
@@ -294,6 +300,21 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
             ]
         }, csv_in_string, csv_out_string)
 
+    def test_new_col_agg(self):
+        csv_in_string = "a\n1\n-2\n3\n1\n-2\n3"
+        csv_out_string1 = "a,b\r\n4,1\r\n2,-1\r\n"
+        csv_out_string2 = "a,b\r\n2,-1\r\n4,1\r\n"
+
+        ret = self._apply_regular_transformation({
+            "cols": {
+                "a": {"type": "int", "agg": "count"},
+            },
+            "new_cols": [
+                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+            ]
+        }, csv_in_string)
+
+        self.assertTrue(ret == csv_out_string1 or ret == csv_out_string2)
 
 class CSVTransformerAggTestCase(CSVTransformerTestCase):
     def test_sum(self):
