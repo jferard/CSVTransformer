@@ -43,6 +43,7 @@ def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
         header = next(reader)
         clean_header = trans.add_fields(header)
         clean_header = improve_header(clean_header)
+        clean_header = trans.extend_header(clean_header)
 
         # write file header
         col_renames = trans.file_header(clean_header)

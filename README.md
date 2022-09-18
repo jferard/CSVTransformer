@@ -58,10 +58,10 @@ Format :
 ### The new columns (TODO)
 Format :
 ```
-"new_cols" : {
-    "<col name>": <new col>,
+"new_cols" : [
+    <new col>,
     ...
-}
+]
 ```
 
 ### A new column (TODO)

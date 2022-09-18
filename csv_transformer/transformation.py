@@ -33,6 +33,7 @@ JSONValue = Union[
 StrRow = Mapping[str, str]
 TypedRow = Mapping[str, Any]
 EntityFilter = Callable[[TypedRow], bool]
+EntityExpression = Callable[[TypedRow], Any]
 ColType = Callable[[str], Any]
 ColFilter = Callable[[Any], bool]
 ColRename = Callable[[str], str]
@@ -97,7 +98,7 @@ class ColumnTransformation:
 
 class NewColumnTransformation:
     def __init__(self, col_id: ColRename, col_visible: bool,
-                 col_filter: ColFilter, col_formula: Expression,
+                 col_filter: ColFilter, col_formula: EntityExpression,
                  col_agg: Optional[ColAgg], col_name: str):
         self._visible = col_visible
         self._filter = col_filter
@@ -129,20 +130,15 @@ class Transformation:
     def __init__(self, entity_filter: EntityFilter, agg_filter: EntityFilter,
                  default_column_transformation: DefaultColumnTransformation,
                  col_transformation_by_name: Dict[str, ColumnTransformation],
-                 new_col_transformation_by_name: Dict[
-                     str, NewColumnTransformation],
+                 new_col_transformations: List[NewColumnTransformation],
                  extra_prefix: str, extra_count: int):
         self._entity_filter = entity_filter
         self._agg_filter = agg_filter
         self._default_column_transformation = default_column_transformation
         self._col_transformation_by_name = col_transformation_by_name
-        self._new_col_transformation_by_name = new_col_transformation_by_name
+        self._new_col_transformations = new_col_transformations
         self._col_transformation_by_id = {
             self._col_id(n): v for n, v in col_transformation_by_name.items()
-        }
-        self._new_col_transformation_by_id = {
-            self._new_col_id(n): v for n, v in
-            new_col_transformation_by_name.items()
         }
         self._extra_prefix = extra_prefix
         self._extra_count = extra_count
@@ -259,11 +255,11 @@ class Transformation:
         except KeyError:
             return self._default_column_transformation.rename(name)
 
-    def _new_col_id(self, name: str) -> str:  # TODO: check
-        try:
-            return self._new_col_transformation_by_name[name].get_id(name)
-        except KeyError:
-            return self._default_column_transformation.rename(name)
+    # def _new_col_id(self, name: str) -> str:  # TODO: check
+    #     try:
+    #         return self._new_col_transformation_by_name[name].get_id(name)
+    #     except KeyError:
+    #         return self._default_column_transformation.rename(name)
 
     def _col_is_visible_by_id(self, col_id: str) -> bool:
         try:
@@ -284,7 +280,12 @@ class Transformation:
             return value
 
     def _extend_row(self, typed_value_by_id: TypedRow) -> TypedRow:
+        for new_col in self._new_col_transformations:
+            typed_value_by_id[new_col.get_id("TODO: attribute")] = new_col.col_formula(typed_value_by_id)
         return typed_value_by_id
+
+    def extend_header(self, clean_header: StrRow) -> StrRow:
+        return clean_header + [nt.get_id("TODO rename") for nt in self._new_col_transformations]
 
 
 class EntityFilterParser:
@@ -432,7 +433,7 @@ class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
                                        col_formula, col_agg, col_name)
 
     def _parse_col_formula(self, col_formula_str: str) -> Expression:
-        parser = self._transformation_builder.expression_parser()
+        parser = self._transformation_builder.row_filter_parser()
         return parser.parse(col_formula_str)
 
     def _parse_col_rename(self, col_rename: str):
@@ -588,8 +589,8 @@ class TransformationBuilder:
             Optional[DefaultColumnTransformation], None)
         self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
                                                 {})
-        self._new_col_transformation_by_id = cast(
-            Dict[str, NewColumnTransformation], {})
+        self._new_col_transformations = cast(
+            List[NewColumnTransformation], [])
         self._extra_prefix = "extra"
         self._extra_count = 1024
 
@@ -621,7 +622,7 @@ class TransformationBuilder:
         return Transformation(self._entity_filter, self._agg_filter,
                               self._default_column_transformation,
                               self._col_transformation_by_name,
-                              self._new_col_transformation_by_id,
+                              self._new_col_transformations,
                               self._extra_prefix, self._extra_count)
 
     def add_col(self, name: str, col_id_str: str, col_visible: bool,
@@ -643,9 +644,9 @@ class TransformationBuilder:
                     col_id_str: str, col_agg_str: str):
         builder = NewColumnTransformationBuilder(self,
                                                  self._default_column_transformation)
-        self._new_col_transformation_by_id[col_id_str] = builder.build(
+        self._new_col_transformations.append(builder.build(
             col_id_str, col_visible, col_filter_str, col_formula_str,
-            col_rename_str, col_agg_str)
+            col_rename_str, col_agg_str))
 
     def entity_filter(self, entity_filter_str: str):
         parser = self.row_filter_parser()
@@ -696,7 +697,7 @@ class TransformationJsonParser:
         cols = json_transformation.get("cols", {})
         self._parse_cols(cols)
 
-        new_cols = json_transformation.get("new_cols", {})
+        new_cols = json_transformation.get("new_cols", [])
         self._parse_new_cols(new_cols)
 
         extra = json_transformation.get("extra", {})
@@ -726,12 +727,12 @@ class TransformationJsonParser:
                                                  col_agg_str)
 
     def _parse_new_cols(self, new_cols):
-        for name, new_col in new_cols.items():  # TODO: by name or by id?
+        for new_col in new_cols:
+            col_id_str = new_col.get("id", None)
             col_visible = new_col.get("visible", None)
             col_filter_str = new_col.get("filter", None)
             col_formula_str = new_col.get("formula", None)
             col_rename_str = new_col.get("rename", None)
-            col_id_str = new_col.get("id", None)
             col_agg_str = new_col.get("agg", None)
 
             self._transformation_builder.add_new_col(col_visible,
