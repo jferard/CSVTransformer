@@ -39,6 +39,7 @@ BINOP_BY_NAME = {
         BinOp("<", 6, True, operator.lt),
         BinOp("<=", 6, True, operator.le),
         BinOp("==", 6, True, operator.eq),
+        BinOp("!=", 6, True, operator.ne),
         BinOp(">=", 6, True, operator.ge),
         BinOp(">", 6, True, operator.gt),
         BinOp("and", 11, True, operator.and_),

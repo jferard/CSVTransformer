@@ -155,7 +155,7 @@ class Transformation:
         self._extra_count = extra_count
         self._d = {}
 
-    def has_agg(self) -> bool:
+    def has_agg(self) -> bool:  # TODO
         return any(self._col_is_agg(col_id)
                    for col_id in self._col_transformation_by_id)
 
@@ -249,10 +249,14 @@ class Transformation:
         return self._agg_filter(value_by_id)
 
     def _col_is_agg(self, col_id: str) -> bool:
-        try:
-            return self._col_transformation_by_id[col_id].has_agg()
-        except KeyError:
+        t = self._col_transformation_by_id.get(col_id,
+                                               self._new_col_transformation_by_id.get(
+                                                   col_id))
+
+        if t is None:
             return False
+
+        return t.has_agg()
 
     def _col_rename(self, name: str) -> str:
         try:
@@ -677,7 +681,8 @@ class TransformationBuilder:
 
     def entity_filter(self, entity_filter_str: str):
         parser = self.row_filter_parser()
-        self._entity_filter = parser.parse(entity_filter_str)
+        parse = parser.parse(entity_filter_str)
+        self._entity_filter = parse
 
     def agg_filter(self, agg_filter_str: str):
         parser = self.row_filter_parser()

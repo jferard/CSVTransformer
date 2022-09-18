@@ -316,6 +316,21 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
 
         self.assertTrue(ret == csv_out_string1 or ret == csv_out_string2)
 
+    def test_new_col_entity_filter(self):
+        csv_in_string = "a\n1\n3\n-2\n0"
+        csv_out_string = "a,b\r\n3,9\r\n-2,4\r\n"
+
+        self._test_regular_transformation({
+            "entity_filter": "a != b",
+            "cols": {
+                "a": {"type": "int"},
+            },
+            "new_cols": [
+                {"id": "b", "formula": "a * a"},
+            ]
+        }, csv_in_string, csv_out_string)
+
+
 class CSVTransformerAggTestCase(CSVTransformerTestCase):
     def test_sum(self):
         csv_in_string = "À demain, été comme hiver\n1,2\n1,3"
