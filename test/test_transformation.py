@@ -279,6 +279,21 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
             ]
         }, csv_in_string, csv_out_string)
 
+    def test_new_col_filter(self):
+        csv_in_string = "a\n1\n3\n-2"
+        csv_out_string = "a,c\r\n1,1\r\n-2,-1\r\n"
+
+        self._test_regular_transformation({
+            "cols": {
+                "a": {"type": "int"},
+            },
+            "new_cols": [
+                {"id": "b", "visible": False, "formula": "a * 2",
+                 "filter": "it < 6"},
+                {"id": "c", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+            ]
+        }, csv_in_string, csv_out_string)
+
 
 class CSVTransformerAggTestCase(CSVTransformerTestCase):
     def test_sum(self):

@@ -18,6 +18,7 @@
 import abc
 import collections
 import logging
+import ntpath
 import re
 from typing import (Mapping, List, Callable, Any, cast, Dict, Iterable,
                     Optional, Iterator, Union)
@@ -59,7 +60,11 @@ class DefaultColumnTransformation:
             return id_func(name)
 
 
-class ColumnTransformation:
+class BaseColumnTransformation:
+    pass
+
+
+class ColumnTransformation(BaseColumnTransformation):
     def __init__(self, col_id: ColRename, col_visible: bool, col_type: ColType,
                  col_filter: ColFilter, col_map: Expression,
                  col_agg: Optional[ColAgg], col_rename: ColRename):
@@ -96,16 +101,16 @@ class ColumnTransformation:
         return self._map(value)
 
 
-class NewColumnTransformation:
-    def __init__(self, col_id: ColRename, col_visible: bool,
+class NewColumnTransformation(BaseColumnTransformation):
+    def __init__(self, col_id_str: str, col_visible: bool,
                  col_filter: ColFilter, col_formula: EntityExpression,
                  col_agg: Optional[ColAgg], col_name: str):
+        self._col_id_str = col_id_str
         self._visible = col_visible
         self._filter = col_filter
         self._formula = col_formula
         self._agg = col_agg
         self._name = col_name
-        self._id = col_id
 
     def has_agg(self) -> bool:
         return self._agg is not None
@@ -116,14 +121,17 @@ class NewColumnTransformation:
     def agg(self, values: List[Any]) -> Any:
         return self._agg(values)
 
-    def get_id(self, name: str) -> str:
-        return self._id(name)
+    def get_id(self) -> str:
+        return self._col_id_str
 
     def col_filter(self, value: Any) -> bool:
         return self._filter(value)
 
     def col_formula(self, typed_value_by_name: TypedRow) -> Any:
         return self._formula(typed_value_by_name)
+
+    def name(self):
+        return self._name
 
 
 class Transformation:
@@ -140,6 +148,9 @@ class Transformation:
         self._col_transformation_by_id = {
             self._col_id(n): v for n, v in col_transformation_by_name.items()
         }
+        self._new_col_transformation_by_id = {
+            nt.get_id(): nt for nt in new_col_transformations
+        }
         self._extra_prefix = extra_prefix
         self._extra_count = extra_count
         self._d = {}
@@ -154,16 +165,22 @@ class Transformation:
         else:
             return header
 
-    def file_header(self, header: Iterable[str]) -> List[Optional[str]]:
-        return [self._col_rename(n) for n in header
-                if self._col_is_visible_by_name(n)]
+    def file_header(self, header: Iterable[str]) -> List[str]:
+        h = [self._col_rename(n) for n in header if
+             self._col_is_visible_by_name(n)]
+        h += [nt.name() for nt in self._new_col_transformations if
+              self._new_col_is_visible_by_id(nt.get_id())]
+        return h
 
     def col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
-        return [self._col_id(n) for n in header]
+        return [self._col_id(n) for n in header] + [nt.get_id() for nt in
+                                                    self._new_col_transformations]
 
     def visible_col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
         return [self._col_id(n) for n in header
-                if self._col_is_visible_by_name(n)]
+                if self._col_is_visible_by_name(n)] + [nt.get_id() for nt in
+                                                       self._new_col_transformations
+                                                       if nt.is_visible()]
 
     def transform(self, value_by_id: StrRow) -> Optional[TypedRow]:
         typed_value_by_id = self._type_row(value_by_id)
@@ -249,6 +266,12 @@ class Transformation:
         except KeyError:
             return self._default_column_transformation.is_visible()
 
+    def _new_col_is_visible_by_id(self, col_id: str) -> bool:
+        try:
+            return self._new_col_transformation_by_id[col_id].is_visible()
+        except KeyError:
+            return self._default_column_transformation.is_visible()
+
     def _col_id(self, name: str) -> str:
         try:
             return self._col_transformation_by_name[name].get_id(name)
@@ -268,10 +291,13 @@ class Transformation:
             return self._default_column_transformation.is_visible()
 
     def _col_filter(self, col_id: str, value: Any) -> bool:
-        try:
-            return self._col_transformation_by_id[col_id].col_filter(value)
-        except KeyError:
+        t = self._col_transformation_by_id.get(
+            col_id, self._new_col_transformation_by_id.get(col_id))
+
+        if t is None:
             return True
+
+        return t.col_filter(value)
 
     def _col_map(self, col_id: str, value: Any) -> Any:
         try:
@@ -281,11 +307,9 @@ class Transformation:
 
     def _extend_row(self, typed_value_by_id: TypedRow) -> TypedRow:
         for new_col in self._new_col_transformations:
-            typed_value_by_id[new_col.get_id("TODO: attribute")] = new_col.col_formula(typed_value_by_id)
+            typed_value_by_id[new_col.get_id()] = new_col.col_formula(
+                typed_value_by_id)
         return typed_value_by_id
-
-    def extend_header(self, clean_header: StrRow) -> StrRow:
-        return clean_header + [nt.get_id("TODO rename") for nt in self._new_col_transformations]
 
 
 class EntityFilterParser:
@@ -344,9 +368,6 @@ class BaseColumnTransformationBuilder(abc.ABC):
         self._transformation_builder = transformation_builder
         self._default_column_transformation = default_column_transformation
 
-    def _parse_col_id(self, col_id_str: str) -> ColRename:
-        return lambda _name: col_id_str
-
     def _parse_col_visible(self, col_visible: Optional[bool]) -> bool:
         if col_visible is None:
             return self._default_column_transformation.is_visible()
@@ -392,6 +413,9 @@ class ColumnTransformationBuilder(BaseColumnTransformationBuilder):
         return ColumnTransformation(col_id, col_visible, col_type, col_filter,
                                     col_map, col_agg, col_rename)
 
+    def _parse_col_id(self, col_id_str: str) -> ColRename:
+        return lambda _name: col_id_str
+
     def _parse_col_type(self, col_type_str: Optional[str]) -> ColType:
         if col_type_str is None:
             return id_func
@@ -419,14 +443,17 @@ class ColumnTransformationBuilder(BaseColumnTransformationBuilder):
 class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
     _logger = logging.getLogger(__name__)
 
-    def build(self, col_id_str: Optional[str], col_visible: Optional[bool],
+    def build(self, col_id_str: str, col_visible: Optional[bool],
               col_filter_str: Optional[str], col_formula_str: Optional[str],
               col_name_str: Optional[str], col_agg_str: Optional[str]):
-        col_id = self._parse_col_id(col_id_str)
+        col_id = col_id_str
         col_visible = self._parse_col_visible(col_visible)
         col_filter = self._parse_col_filter(col_filter_str)
         col_formula = self._parse_col_formula(col_formula_str)
-        col_name = col_name_str
+        if col_name_str is None:
+            col_name = col_id_str
+        else:
+            col_name = col_name_str
         col_agg = self._parse_col_agg(col_agg_str)
 
         return NewColumnTransformation(col_id, col_visible, col_filter,
