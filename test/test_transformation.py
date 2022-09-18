@@ -330,6 +330,33 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
             ]
         }, csv_in_string, csv_out_string)
 
+    def test_new_col_agg_filter(self):
+        csv_in_string = "a\n1\n-2\n3\n1\n-2\n3"
+        csv_out_string = "a,b\r\n4,1\r\n"
+
+        self._test_regular_transformation({
+            "agg_filter": "b == 1",
+            "cols": {
+                "a": {"type": "int", "agg": "count"},
+            },
+            "new_cols": [
+                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+            ]
+        }, csv_in_string, csv_out_string)
+
+    def test_new_col_agg_filter2(self):
+        csv_in_string = "a\n1\n-2\n3\n1\n-2\n3"
+        csv_out_string = "a,b\r\n4,1\r\n"
+
+        self._test_regular_transformation({
+            "agg_filter": "a == 4",
+            "cols": {
+                "a": {"type": "int", "agg": "count"},
+            },
+            "new_cols": [
+                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+            ]
+        }, csv_in_string, csv_out_string)
 
 class CSVTransformerAggTestCase(CSVTransformerTestCase):
     def test_sum(self):
