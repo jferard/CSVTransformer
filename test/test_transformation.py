@@ -281,7 +281,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int"},
             },
             "new_cols": [
-                {"id": "b", "formula": "a * 2"}
+                {"id": "b", "formula_path": "a * 2"}
             ]
         }, csv_in_string, csv_out_string)
 
@@ -294,9 +294,9 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int"},
             },
             "new_cols": [
-                {"id": "b", "visible": False, "formula": "a * 2",
+                {"id": "b", "visible": False, "formula_path": "a * 2",
                  "filter": "it < 6"},
-                {"id": "c", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+                {"id": "c", "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string, csv_out_string)
 
@@ -310,7 +310,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int", "agg": "count"},
             },
             "new_cols": [
-                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+                {"id": "b", "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string)
 
@@ -326,7 +326,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int"},
             },
             "new_cols": [
-                {"id": "b", "formula": "a * a"},
+                {"id": "b", "formula_path": "a * a"},
             ]
         }, csv_in_string, csv_out_string)
 
@@ -340,7 +340,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int", "agg": "count"},
             },
             "new_cols": [
-                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+                {"id": "b", "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string, csv_out_string)
 
@@ -354,7 +354,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"type": "int", "agg": "count"},
             },
             "new_cols": [
-                {"id": "b", "formula": "if(a > 0, 1,if(a==0, 0, -1))"}
+                {"id": "b", "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string, csv_out_string)
 

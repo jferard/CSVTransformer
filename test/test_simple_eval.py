@@ -127,42 +127,45 @@ class TokenizeTestCase(unittest.TestCase):
     TOKEN_INFO_END_MARKER = TokenInfo(ENDMARKER, '', (2, 0), (2, 0), '')
 
     def test_tokenize_field(self):
+        expr = 'it.year > 2000\n'
         self.assertEqual([
             self.TOKEN_INFO_ENC,
-            TokenInfo(NAME, 'it', (1, 0), (1, 2), 'it.year > 2000'),
-            TokenInfo(OP, '.', (1, 2), (1, 3), 'it.year > 2000'),
-            TokenInfo(NAME, 'year', (1, 3), (1, 7), 'it.year > 2000'),
-            TokenInfo(OP, '>', (1, 8), (1, 9), 'it.year > 2000'),
-            TokenInfo(NUMBER, '2000', (1, 10), (1, 14), 'it.year > 2000'),
-            TokenInfo(NEWLINE, '', (1, 14), (1, 15), ''),
+            TokenInfo(NAME, 'it', (1, 0), (1, 2), expr),
+            TokenInfo(OP, '.', (1, 2), (1, 3), expr),
+            TokenInfo(NAME, 'year', (1, 3), (1, 7), expr),
+            TokenInfo(OP, '>', (1, 8), (1, 9), expr),
+            TokenInfo(NUMBER, '2000', (1, 10), (1, 14), expr),
+            TokenInfo(NEWLINE, '\n', (1, 14), (1, 15), expr),
             self.TOKEN_INFO_END_MARKER
-        ], list(tokenize_expr("it.year > 2000")))
+        ], list(tokenize_expr(expr)))
 
     def test_tokenize_neg(self):
+        expr = 'it.year > -2000\n'
         self.assertEqual([
             self.TOKEN_INFO_ENC,
-            TokenInfo(NAME, 'it', (1, 0), (1, 2), 'it.year > -2000'),
-            TokenInfo(OP, '.', (1, 2), (1, 3), 'it.year > -2000'),
-            TokenInfo(NAME, 'year', (1, 3), (1, 7), 'it.year > -2000'),
-            TokenInfo(OP, '>', (1, 8), (1, 9), 'it.year > -2000'),
-            TokenInfo(OP, '-', (1, 10), (1, 11), 'it.year > -2000'),
-            TokenInfo(NUMBER, '2000', (1, 11), (1, 15), 'it.year > -2000'),
-            TokenInfo(NEWLINE, '', (1, 15), (1, 16), ''),
+            TokenInfo(NAME, 'it', (1, 0), (1, 2), expr),
+            TokenInfo(OP, '.', (1, 2), (1, 3), expr),
+            TokenInfo(NAME, 'year', (1, 3), (1, 7), expr),
+            TokenInfo(OP, '>', (1, 8), (1, 9), expr),
+            TokenInfo(OP, '-', (1, 10), (1, 11), expr),
+            TokenInfo(NUMBER, '2000', (1, 11), (1, 15), expr),
+            TokenInfo(NEWLINE, '\n', (1, 15), (1, 16), expr),
             self.TOKEN_INFO_END_MARKER
-        ], list(tokenize_expr("it.year > -2000")))
+        ], list(tokenize_expr(expr)))
 
     def test_tokenize_function(self):
+        expr = 'f(a, 2)\n'
         self.assertEqual([
             self.TOKEN_INFO_ENC,
-            TokenInfo(NAME, 'f', (1, 0), (1, 1), 'f(a, 2)'),
-            TokenInfo(OP, '(', (1, 1), (1, 2), 'f(a, 2)'),
-            TokenInfo(NAME, 'a', (1, 2), (1, 3), 'f(a, 2)'),
-            TokenInfo(OP, ',', (1, 3), (1, 4), 'f(a, 2)'),
-            TokenInfo(NUMBER, '2', (1, 5), (1, 6), 'f(a, 2)'),
-            TokenInfo(OP, ')', (1, 6), (1, 7), 'f(a, 2)'),
-            TokenInfo(NEWLINE, '', (1, 7), (1, 8), ''),
+            TokenInfo(NAME, 'f', (1, 0), (1, 1), expr),
+            TokenInfo(OP, '(', (1, 1), (1, 2), expr),
+            TokenInfo(NAME, 'a', (1, 2), (1, 3), expr),
+            TokenInfo(OP, ',', (1, 3), (1, 4), expr),
+            TokenInfo(NUMBER, '2', (1, 5), (1, 6), expr),
+            TokenInfo(OP, ')', (1, 6), (1, 7), expr),
+            TokenInfo(NEWLINE, '\n', (1, 7), (1, 8), expr),
             self.TOKEN_INFO_END_MARKER
-        ], list(tokenize_expr("f(a, 2)")))
+        ], list(tokenize_expr(expr)))
 
 
 class ShuntingYardTestCase(unittest.TestCase):

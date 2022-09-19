@@ -546,7 +546,7 @@ class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
 #             self._parse_col_filter(col_filter_str)
 #
 #         try:
-#             col_formula_str = json_col["formula"]
+#             col_formula_str = json_col["formula_path"]
 #         except KeyError:
 #             pass
 #         else:
@@ -763,7 +763,7 @@ class TransformationJsonParser:
             col_id_str = new_col.get("id", None)
             col_visible = new_col.get("visible", None)
             col_filter_str = new_col.get("filter", None)
-            col_formula_str = new_col.get("formula", None)
+            col_formula_str = new_col.get("formula_path", None)
             col_rename_str = new_col.get("rename", None)
             col_agg_str = new_col.get("agg", None)
 
