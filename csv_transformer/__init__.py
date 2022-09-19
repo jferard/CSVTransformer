@@ -18,83 +18,101 @@
 import csv
 import itertools
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Callable
 
 from csv_transformer.en_functions import (
     FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
     INFIX_UNOP_BY_NAME)
 from csv_transformer.transformation import (
     TransformationJsonParser, improve_header, JSONValue, TransformationBuilder,
-    Transformation, Expression)
+    Transformation, Expression, ExpressionParser)
 
 
-def main(csv_in: JSONValue, transformation_dict: JSONValue, csv_out: JSONValue,
+class CsvIn:
+    def __init__(self, path: Path, encoding: str, fmtparams: JSONValue):
+        self.path = path
+        self.encoding = encoding
+        self.fmtparams = fmtparams
+
+
+class CsvOut:
+    def __init__(self, path_func: Callable[[Path], Path],
+                 encoding_func: Callable[[str], str], fmtparams: JSONValue):
+        self._path_func = path_func
+        self._encoding_func = encoding_func
+        self.fmtparams = fmtparams
+
+    def path(self, in_path: Path) -> Path:
+        return self._path_func(in_path)
+
+    def encoding(self, in_encoding: str) -> str:
+        return self._encoding_func(in_encoding)
+
+
+def parse_json_csv_in(csv_in: JSONValue) -> CsvIn:
+    return CsvIn(csv_in.pop("path"), csv_in.pop("encoding", "utf-8"),
+                 csv_in)
+
+
+def parse_json_csv_out(expression_parser: ExpressionParser,
+                       csv_out: JSONValue) -> CsvOut:
+    if "path" in csv_out:
+        path_func = lambda _in_path: csv_out.pop("path")
+    else:
+        formula_path_str = csv_out.pop("formula_path")
+        formula_path = expression_parser.parse(formula_path_str)
+        path_func = lambda in_path: formula_path(in_path)
+
+    if "encoding" in csv_out:
+        encoding_func = lambda _in_encoding: csv_out.pop("encoding")
+    else:
+        encoding_func = lambda in_encoding: in_encoding
+
+    return CsvOut(path_func, encoding_func, csv_out)
+
+
+def main(csv_in_dict: JSONValue, transformation_dict: JSONValue,
+         csv_out_dict: JSONValue,
          risky: bool = False, limit: int = None):
-    executor = create_executor(transformation_dict, csv_out, risky, limit)
+    executor = create_executor(transformation_dict, csv_out_dict, risky, limit)
+
+    csv_in = parse_json_csv_in(csv_in_dict)
     executor.execute(csv_in)
 
 
-def create_executor(transformation_dict: JSONValue, csv_out: JSONValue,
-                    risky: bool = False, limit: int = None
-                    ) -> "Executor":
+def create_executor(transformation_dict: JSONValue, csv_out_dict: JSONValue,
+                    risky: bool = False, limit: int = None):
     transformation_builder = TransformationBuilder(
         risky, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
         INFIX_UNOP_BY_NAME)
     transformation = TransformationJsonParser(transformation_builder).parse(
         transformation_dict)
-
-    if "path" in csv_out:
-        return ExecutorOnce(transformation, csv_out, limit)
-    else:
-        expression_parser = transformation_builder.expression_parser()
-        formula_path = expression_parser.parse(csv_out.pop("formula_path", "t"))
-        return ExecutorMany(transformation, csv_out, formula_path, limit)
+    csv_out = parse_json_csv_out(transformation_builder.expression_parser(),
+                                 csv_out_dict)
+    executor = Executor(transformation, csv_out, limit)
+    return executor
 
 
-class Executor(ABC):
-    @abstractmethod
-    def execute(self, csv_in: JSONValue):
-        pass
-
-
-class ExecutorOnce(Executor):
-    def __init__(self, transformation: Transformation, csv_out: JSONValue,
+class Executor:
+    def __init__(self, transformation: Transformation, csv_out: CsvOut,
                  limit: int = None):
         self._transformation = transformation
         self._csv_out = csv_out
         self._limit = limit
 
-    def execute(self, csv_in: JSONValue):
-        in_encoding = csv_in.pop("encoding", "utf-8")
-        in_path = csv_in.pop("path")
-        out_encoding = self._csv_out.pop("encoding", in_encoding)
-        out_path = self._csv_out.pop("path")
+    def execute(self, csv_in: CsvIn):
+        in_encoding = csv_in.encoding
+        in_path = csv_in.path
+        in_fmtparams = csv_in.fmtparams
+        out_encoding = self._csv_out.encoding(in_encoding)
+        out_path = self._csv_out.path(in_path)
+        out_fmtparams = self._csv_out.fmtparams
 
         with in_path.open("r", encoding=in_encoding) as s, \
                 out_path.open("w", encoding=out_encoding, newline="") as d:
-            writer = csv.writer(d, **self._csv_out)
-            reader = csv.reader(s, **csv_in)
-            execute_rw(reader, self._transformation, writer, self._limit)
-
-
-class ExecutorMany(Executor):
-    def __init__(self, transformation: Transformation, csv_out: JSONValue,
-                 formula_path: Expression,
-                 limit: int = None):
-        self._transformation = transformation
-        self._csv_out = csv_out
-        self._formula_path = formula_path
-        self._limit = limit
-
-    def execute(self, csv_in: JSONValue):
-        in_encoding = csv_in.pop("encoding", "utf-8")
-        in_path = csv_in.pop("path")
-        out_encoding = self._csv_out.pop("encoding", in_encoding)
-        out_path = self._formula_path(in_path)
-
-        with in_path.open("r", encoding=in_encoding) as s, \
-                out_path.open("w", encoding=out_encoding, newline="") as d:
-            writer = csv.writer(d, **self._csv_out)
-            reader = csv.reader(s, **csv_in)
+            writer = csv.writer(d, **out_fmtparams)
+            reader = csv.reader(s, **in_fmtparams)
             execute_rw(reader, self._transformation, writer, self._limit)
 
 
