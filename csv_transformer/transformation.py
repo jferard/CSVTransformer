@@ -18,13 +18,11 @@
 import abc
 import collections
 import logging
-import ntpath
 import re
 from typing import (Mapping, List, Callable, Any, cast, Dict, Iterable,
                     Optional, Iterator, Union)
 
-from csv_transformer.functions import id_func, true_func, normalize, \
-    empty_string_func
+from csv_transformer.functions import (id_func, true_func, normalize)
 from csv_transformer.simple_eval import (
     tokenize_expr, evaluate, ShuntingYard)
 
@@ -401,7 +399,7 @@ class ColumnTransformationBuilder(BaseColumnTransformationBuilder):
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
               col_type_str: str, col_filter_str: str, col_map_str: str,
-              col_rename_str: str, col_agg_str: str) -> ColumnTransformation:
+              col_agg_str: str, col_rename_str: str) -> ColumnTransformation:
 
         col_rename = self._parse_col_rename(col_rename_str)
         if col_id_str is None:
@@ -448,8 +446,9 @@ class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
     _logger = logging.getLogger(__name__)
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
-              col_filter_str: Optional[str], col_formula_str: Optional[str],
-              col_name_str: Optional[str], col_agg_str: Optional[str]) -> NewColumnTransformation:
+              col_formula_str: Optional[str], col_filter_str: Optional[str],
+              col_agg_str: Optional[str],
+              col_name_str: Optional[str]) -> NewColumnTransformation:
         col_id = col_id_str
         col_visible = self._parse_col_visible(col_visible)
         col_filter = self._parse_col_filter(col_filter_str)
@@ -524,26 +523,21 @@ class TransformationBuilder:
 
     def add_col(self, name: str, col_id_str: str, col_visible: bool,
                 col_type_str: str, col_filter_str: str, col_map_str: str,
-                col_rename_str: str, col_agg_str: str):
+                col_agg_str: str, col_rename_str: str):
         builder = ColumnTransformationBuilder(self,
                                               self._default_column_transformation)
-        self._col_transformation_by_name[name] = builder.build(col_id_str,
-                                                               col_visible,
-                                                               col_type_str,
-                                                               col_filter_str,
-                                                               col_map_str,
-                                                               col_rename_str,
-                                                               col_agg_str)
+        self._col_transformation_by_name[name] = builder.build(
+            col_id_str, col_visible, col_type_str, col_filter_str, col_map_str,
+            col_agg_str, col_rename_str)
 
-    def add_new_col(self, col_visible: bool,
-                    col_filter_str: str, col_formula_str: str,
-                    col_rename_str: str,
-                    col_id_str: str, col_agg_str: str):
+    def add_new_col(self, col_id_str: str, col_visible: bool,
+                    col_formula_str: str, col_filter_str: str, col_agg_str: str,
+                    col_name_str: str):
         builder = NewColumnTransformationBuilder(self,
                                                  self._default_column_transformation)
-        self._new_col_transformations.append(builder.build(
-            col_id_str, col_visible, col_filter_str, col_formula_str,
-            col_rename_str, col_agg_str))
+        self._new_col_transformations.append(
+            builder.build(col_id_str, col_visible, col_formula_str,
+                          col_filter_str, col_agg_str, col_name_str))
 
     def entity_filter(self, entity_filter_str: str):
         parser = self.row_filter_parser()
@@ -568,15 +562,6 @@ class TransformationJsonParser:
 
     def __init__(self, transformation_builder: "TransformationBuilder"):
         self._transformation_builder = transformation_builder
-        # self._entity_filter = true_func
-        # self._agg_filter = true_func
-        # self._default_column_transformation = DefaultColumnTransformation(
-        #     True, False)
-        # self._col_transformation_by_name = cast(Dict[str, ColumnTransformation],
-        #                                         {})
-        # self._new_col_transformation_by_id = cast(
-        #     Dict[str, NewColumnTransformation],
-        #     {})
 
     def parse(self, json_transformation: JSONValue) -> Transformation:
         try:
@@ -621,8 +606,8 @@ class TransformationJsonParser:
 
             self._transformation_builder.add_col(name, col_id_str, col_visible,
                                                  col_type_str, col_filter_str,
-                                                 col_map_str, col_rename_str,
-                                                 col_agg_str)
+                                                 col_map_str, col_agg_str,
+                                                 col_rename_str)
 
     def _parse_new_cols(self, new_cols):
         for new_col in new_cols:
@@ -633,11 +618,11 @@ class TransformationJsonParser:
             col_rename_str = new_col.get("rename", None)
             col_agg_str = new_col.get("agg", None)
 
-            self._transformation_builder.add_new_col(col_visible,
-                                                     col_filter_str,
+            self._transformation_builder.add_new_col(col_id_str, col_visible,
                                                      col_formula_str,
-                                                     col_rename_str,
-                                                     col_id_str, col_agg_str)
+                                                     col_filter_str,
+                                                     col_agg_str,
+                                                     col_rename_str)
 
     def _parse_default_col(self, default_col: JSONValue):
         self._transformation_builder.default_col(
