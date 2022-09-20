@@ -30,7 +30,7 @@ class EnFunctionsTestCase(unittest.TestCase):
                          dt.datetime(2017, 5, 12, 12, 30, 15))
         self.assertEqual(FUNC_BY_TYPE["datetime"]("2017-05-12 12:30:15"),
                          dt.datetime(2017, 5, 12, 12, 30, 15))
-        self.assertEqual(FUNC_BY_TYPE["datetime_iso"]("2017-05-12 12:30:15"),
+        self.assertEqual(FUNC_BY_TYPE["datetime_us"]("2017-05-12 12:30:15"),
                          dt.datetime(2017, 5, 12, 12, 30, 15))
 
     def test_datetime(self):
@@ -38,7 +38,7 @@ class EnFunctionsTestCase(unittest.TestCase):
                          dt.date(2017, 5, 12))
         self.assertEqual(FUNC_BY_TYPE["date"]("2017-05-12"),
                          dt.date(2017, 5, 12))
-        self.assertEqual(FUNC_BY_TYPE["date_iso"]("2017-05-12"),
+        self.assertEqual(FUNC_BY_TYPE["date_us"]("2017-05-12"),
                          dt.date(2017, 5, 12))
 
     def test_float(self):

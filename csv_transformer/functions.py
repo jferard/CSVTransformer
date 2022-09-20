@@ -16,6 +16,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime as dt
+import decimal
 import locale
 import re
 from typing import Union, Optional, Tuple, Any
@@ -26,7 +27,7 @@ IntoDatetime = IntoDate
 
 def to_date(v: IntoDate) -> dt.date:
     if isinstance(v, str):
-        return date_fromisoformat(v)
+        return date_from_us_format(v)
     elif isinstance(v, dt.datetime):
         return v.date()
     elif isinstance(v, dt.date):
@@ -37,7 +38,7 @@ def to_date(v: IntoDate) -> dt.date:
 
 def to_datetime(v: IntoDatetime) -> dt.datetime:
     if isinstance(v, str):
-        return datetime_fromisoformat(v)
+        return datetime_from_us_format(v)
     elif isinstance(v, dt.datetime):
         return v
     elif isinstance(v, dt.date):
@@ -121,19 +122,27 @@ def str_to_datetime(s: str) -> dt.datetime:
         except ValueError:
             pass
 
-    return datetime_fromisoformat(s)
+    return datetime_from_us_format(s)
 
-def datetime_fromisoformat(s: str) -> dt.datetime:
-    try:
-        return dt.datetime.fromisoformat(s)
-    except:
-        return dt.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
 
-def date_fromisoformat(s: str) -> dt.date:
-    try:
-        return dt.date.fromisoformat(s)
-    except:
-        return dt.datetime.strptime(s, "%Y-%m-%d").date()
+def datetime_from_us_format(s: str) -> dt.datetime:
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%y-%m-%d %H:%M:%S", "%Y%m%d %H%M%S", "%y%m%d %H%M%S"):
+        try:
+            return dt.datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+
+    raise ValueError()
+
+
+def date_from_us_format(s: str) -> dt.date:
+    for fmt in ("%Y-%m-%d", "%y-%m-%d", "%Y%m%d", "%y%m%d"):
+        try:
+            return dt.datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+
+    raise ValueError()
 
 
 def str_to_date(s: str) -> dt.date:
@@ -143,21 +152,31 @@ def str_to_date(s: str) -> dt.date:
         except ValueError:
             pass
 
-    return date_fromisoformat(s)
+    return date_from_us_format(s)
+
+
+def str_to_int(s: str) -> int:
+    s = re.sub(r"\s+", "", s)
+    return int(s)
 
 
 def str_to_float(s: str) -> float:
-    lconv = locale.localeconv()
-    s = s.replace(' ', '')
-    s = s.replace(lconv['thousands_sep'], '')
-    s = s.replace(lconv['decimal_point'], '.')
+    s = re.sub(r"\s+", "", s)
+    s = s.replace(',', '.')
     return float(s)
+
+
+def str_to_decimal(s: str) -> decimal.Decimal:
+    s = re.sub(r"\s+", "", s)
+    s = s.replace(',', '.')
+    return decimal.Decimal(s)
 
 
 def id_func(x: Any) -> Any: return x
 
 
 def true_func(_x: Any) -> Any: return True
+
 
 def empty_string_func(*_x: Any) -> Any: return ""
 

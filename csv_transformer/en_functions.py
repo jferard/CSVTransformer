@@ -16,6 +16,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime as dt
+import decimal
 import math
 import operator
 import random
@@ -25,7 +26,8 @@ import statistics
 from csv_transformer.simple_eval import Function, PrefixUnOp, BinOp
 from csv_transformer.functions import to_date, to_datetime, to_date_or_datetime, \
     add_years, add_months, age, case, str_to_float, str_to_date, \
-    str_to_datetime, datetime_fromisoformat, date_fromisoformat
+    str_to_datetime, datetime_from_us_format, date_from_us_format, str_to_int, \
+    str_to_decimal
 
 BINOP_BY_NAME = {
     f.name: f for f in [
@@ -159,11 +161,13 @@ FUNC_BY_AGG = {
 }
 
 FUNC_BY_TYPE = {
-    "int": int,
+    "int": str_to_int,
     "float": str_to_float,
     "float_us": float,
+    "decimal": str_to_decimal,
+    "decimal_us": decimal.Decimal,
     "date": str_to_date,
-    "date_iso": date_fromisoformat,
+    "date_us": date_from_us_format,
     "datetime": str_to_datetime,
-    "datetime_iso": datetime_fromisoformat
+    "datetime_us": datetime_from_us_format
 }
