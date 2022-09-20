@@ -217,7 +217,8 @@ class Transformation:
         if self._filter(typed_value_by_id):
             key = tuple([
                 (i, typed_value_by_id[i]) for i in typed_value_by_id
-                if not self._col_is_agg(i) and self._col_is_visible_by_id(i)
+                if not self._col_is_agg(i) and (self._col_is_visible_by_id(
+                    i) or self._new_col_is_visible_by_id(i))
             ])
             for col_id in self._col_transformation_by_id:
                 if self._col_is_agg(col_id):

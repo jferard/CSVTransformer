@@ -316,6 +316,23 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
 
         self.assertTrue(ret == csv_out_string1 or ret == csv_out_string2)
 
+    def test_new_col_agg2(self):
+        csv_in_string = "a\n1\n-2\n3\n1\n-2\n3"
+        csv_out_string1 = "a,b\r\n4,1\r\n2,-1\r\n"
+        csv_out_string2 = "a,b\r\n2,-1\r\n4,1\r\n"
+
+        ret = self._apply_regular_transformation({
+            "default_col": {"visible": False},
+            "cols": {
+                "a": {"visible": True, "type": "int", "agg": "count"},
+            },
+            "new_cols": [
+                {"id": "b", "visible": True, "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
+            ]
+        }, csv_in_string)
+
+        self.assertTrue(ret == csv_out_string1 or ret == csv_out_string2)
+
     def test_new_col_entity_filter(self):
         csv_in_string = "a\n1\n3\n-2\n0"
         csv_out_string = "a,b\r\n3,9\r\n-2,4\r\n"
