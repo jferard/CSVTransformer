@@ -59,41 +59,44 @@ class DefaultColumnTransformation:
 
 
 class BaseColumnTransformation:
-    pass
+    def __init__(self, col_visible: bool, col_filter: ColFilter,
+                 col_agg: Optional[ColAgg]):
+        self._visible = col_visible
+        self._filter = col_filter
+        self._agg = col_agg
+
+    def is_visible(self) -> bool:
+        return self._visible
+
+    def col_filter(self, value: Any) -> bool:
+        return self._filter(value)
+
+    def has_agg(self) -> bool:
+        return self._agg is not None
+
+    def agg(self, values: List[Any]) -> Any:
+        return self._agg(values)
 
 
 class ColumnTransformation(BaseColumnTransformation):
     def __init__(self, col_id: ColRename, col_visible: bool, col_type: ColType,
                  col_filter: ColFilter, col_map: Expression,
                  col_agg: Optional[ColAgg], col_rename: ColRename):
-        self._visible = col_visible
-        self._type = col_type
-        self._filter = col_filter
-        self._map = col_map
-        self._agg = col_agg
-        self._rename = col_rename
+        BaseColumnTransformation.__init__(self, col_visible, col_filter,
+                                          col_agg)
         self._id = col_id
-
-    def has_agg(self) -> bool:
-        return self._agg is not None
-
-    def rename(self, name: str) -> str:
-        return self._rename(name)
-
-    def type_value(self, value_str: str) -> Any:
-        return self._type(value_str)
-
-    def is_visible(self) -> bool:
-        return self._visible
-
-    def agg(self, values: List[Any]) -> Any:
-        return self._agg(values)
+        self._type = col_type
+        self._map = col_map
+        self._rename = col_rename
 
     def get_id(self, name: str) -> str:
         return self._id(name)
 
-    def col_filter(self, value: Any) -> bool:
-        return self._filter(value)
+    def type_value(self, value_str: str) -> Any:
+        return self._type(value_str)
+
+    def rename(self, name: str) -> str:
+        return self._rename(name)
 
     def col_map(self, value: Any) -> Any:
         return self._map(value)
@@ -103,27 +106,15 @@ class NewColumnTransformation(BaseColumnTransformation):
     def __init__(self, col_id_str: str, col_visible: bool,
                  col_filter: ColFilter, col_formula: EntityExpression,
                  col_agg: Optional[ColAgg], col_name: str):
+        BaseColumnTransformation.__init__(self, col_visible, col_filter,
+                                          col_agg)
         self._col_id_str = col_id_str
-        self._visible = col_visible
-        self._filter = col_filter
         self._formula = col_formula
         self._agg = col_agg
         self._name = col_name
 
-    def has_agg(self) -> bool:
-        return self._agg is not None
-
-    def is_visible(self) -> bool:
-        return self._visible
-
-    def agg(self, values: List[Any]) -> Any:
-        return self._agg(values)
-
     def get_id(self) -> str:
         return self._col_id_str
-
-    def col_filter(self, value: Any) -> bool:
-        return self._filter(value)
 
     def col_formula(self, typed_value_by_name: TypedRow) -> Any:
         return self._formula(typed_value_by_name)
