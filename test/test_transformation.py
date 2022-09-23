@@ -482,7 +482,7 @@ class CSVTransformerParserTestCase(unittest.TestCase):
         )
         transformation = TransformationJsonParser(
             factory).parse(transformation_dict)
-        ct = transformation._col_transformation_by_name['a']
+        ct = transformation._existing_col_transformation_by_name['a']
         with self.assertRaises(KeyError):
             ct.type_value("2")
 

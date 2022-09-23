@@ -122,8 +122,8 @@ def execute_rw(reader: csv.reader, transformation: Transformation,
     clean_header = transformation.add_fields(header)
     clean_header = improve_header(clean_header)
     # write file header
-    col_renames = transformation.file_header(clean_header)
-    writer.writerow(col_renames)
+    file_header = transformation.file_header(clean_header)
+    writer.writerow(file_header)
     # the id header
     col_ids = transformation.col_ids(clean_header)
     visible_col_ids = transformation.visible_col_ids(clean_header)
