@@ -27,7 +27,7 @@ from csv_transformer.simple_eval import Function, PrefixUnOp, BinOp
 from csv_transformer.functions import to_date, to_datetime, to_date_or_datetime, \
     add_years, add_months, age, case, str_to_float, str_to_date, \
     str_to_datetime, datetime_from_us_format, date_from_us_format, str_to_int, \
-    str_to_decimal
+    str_to_decimal, to_path, with_stem
 
 BINOP_BY_NAME = {
     f.name: f for f in [
@@ -132,6 +132,12 @@ PREFIX_UNOP_BY_NAME = {
         # https://www.postgresql.org/docs/current/functions-conditional.html
         Function("if", lambda x, y, z: y if x else z),
         Function("case", case),
+
+        # path
+        Function("path", to_path),
+        Function("dir", lambda p: to_path(p).parent),
+        Function("with_suffix", lambda p, s: to_path(p).with_suffix(s)),
+        Function("with_stem", with_stem),
 
         # ops
         PrefixUnOp("-", 2, False, operator.neg),

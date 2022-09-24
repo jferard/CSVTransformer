@@ -17,8 +17,8 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime as dt
 import decimal
-import locale
 import re
+from pathlib import Path
 from typing import Union, Optional, Tuple, Any
 
 IntoDate = Union[str, dt.date, dt.datetime]
@@ -53,6 +53,14 @@ def to_date_or_datetime(v: IntoDatetime) -> Union[dt.date, dt.datetime]:
         return ret.date()
     else:
         return ret
+
+
+to_path = Path
+
+
+def with_stem(p: Union[Path, str], s: str):
+    dirpath = to_path(p).parent
+    return dirpath / s
 
 
 def add_years(d: dt.date, y: int) -> dt.date:
@@ -126,7 +134,9 @@ def str_to_datetime(s: str) -> dt.datetime:
 
 
 def datetime_from_us_format(s: str) -> dt.datetime:
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%y-%m-%d %H:%M:%S", "%Y%m%d %H%M%S", "%y%m%d %H%M%S"):
+    for fmt in (
+            "%Y-%m-%d %H:%M:%S", "%y-%m-%d %H:%M:%S", "%Y%m%d %H%M%S",
+            "%y%m%d %H%M%S"):
         try:
             return dt.datetime.strptime(s, fmt)
         except ValueError:

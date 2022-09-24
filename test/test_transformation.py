@@ -20,7 +20,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from csv_transformer import main, TransformationJsonParser
+from csv_transformer import main, TransformationJsonParser, parse_json_csv_out
 
 FIXTURE_PATH = Path(__file__).parent / "fixture"
 
@@ -327,7 +327,8 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 "a": {"visible": True, "type": "int", "agg": "count"},
             },
             "new_cols": [
-                {"id": "b", "visible": True, "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
+                {"id": "b", "visible": True,
+                 "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string)
 
@@ -374,6 +375,7 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
                 {"id": "b", "formula_path": "if(a > 0, 1,if(a==0, 0, -1))"}
             ]
         }, csv_in_string, csv_out_string)
+
 
 class CSVTransformerAggTestCase(CSVTransformerTestCase):
     def test_sum(self):
@@ -575,6 +577,22 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
         main(csv_in, transformation_dict, csv_out)
 
 
+class DefaultColumnTransformationTestCase(unittest.TestCase):
+    def test_rename(self):
+        df = DefaultColumnTransformation(True, False)
+        self.assertEqual("Abc", df.rename("Abc"))
+
+
+class NewColumnDefinitionTestCase(unittest.TestCase):
+    def test_name(self):
+        builder = TransformationBuilder(False, FUNC_BY_TYPE, FUNC_BY_AGG,
+                                        BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                                        INFIX_UNOP_BY_NAME)
+        df = NewColumnDefinitionBuilder(builder, None).build("id", True, "f",
+                                                             "f", "f", "name")
+        self.assertEqual("name", df.name())
+
+
 class ExpressionParserTestCase(unittest.TestCase):
     def test_func(self):
         f = ExpressionParser(BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
@@ -600,6 +618,37 @@ class HeaderTestCase(unittest.TestCase):
 
     def test_normalize(self):
         self.assertEqual("un_test_effectue", normalize("Un Test  Effectué"))
+
+
+class CSVOutTestCase(unittest.TestCase):
+    def setUp(self):
+        self._expression_parser = ExpressionParser(BINOP_BY_NAME,
+                                                   PREFIX_UNOP_BY_NAME,
+                                                   INFIX_UNOP_BY_NAME)
+
+    def test_formula1(self):
+        csv_out = parse_json_csv_out(self._expression_parser,
+                                     {"formula_path": "it + '.txt'"})
+        self.assertEqual("test.txt", csv_out.path("test"))
+
+    def test_formula2(self):
+        csv_out = parse_json_csv_out(self._expression_parser,
+                                     {
+                                         "formula_path": "with_stem(it, 'ko.csv')"})
+        self.assertEqual(Path('/home/jferard/ko.csv'),
+                         csv_out.path(Path("/home/jferard/ok.csv")))
+
+    def test_formula3(self):
+        csv_out = parse_json_csv_out(self._expression_parser,
+                                     {
+                                         "formula_path": "with_suffix(it, '.csv')"})
+        self.assertEqual(Path('/home/jferard/ok.csv'),
+                         csv_out.path(Path("/home/jferard/ok.txt")))
+
+    def test_encoding(self):
+        csv_out = parse_json_csv_out(self._expression_parser,
+                                     {"path": "x", "encoding": "utf-8"})
+        self.assertEqual("utf-8", csv_out.encoding("ansi"))
 
 
 if __name__ == '__main__':

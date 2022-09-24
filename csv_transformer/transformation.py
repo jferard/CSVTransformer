@@ -347,7 +347,7 @@ class RiskyExpressionParser:
         return lambda v: eval(expression_str, {}, {"it": v})
 
 
-class BaseColumnTransformationBuilder(abc.ABC):
+class ColumnTransformationBuilder(abc.ABC):
     _logger = logging.getLogger(__name__)
 
     def __init__(self, transformation_builder: "TransformationBuilder",
@@ -379,7 +379,7 @@ class BaseColumnTransformationBuilder(abc.ABC):
             return None
 
 
-class ColumnTransformationBuilder(BaseColumnTransformationBuilder):
+class ExistingColumnTransformationBuilder(ColumnTransformationBuilder):
     _logger = logging.getLogger(__name__)
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
@@ -429,7 +429,7 @@ class ColumnTransformationBuilder(BaseColumnTransformationBuilder):
         return lambda _name: col_rename
 
 
-class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
+class NewColumnDefinitionBuilder(ColumnTransformationBuilder):
     _logger = logging.getLogger(__name__)
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
@@ -452,9 +452,6 @@ class NewColumnTransformationBuilder(BaseColumnTransformationBuilder):
     def _parse_col_formula(self, col_formula_str: str) -> Expression:
         parser = self._transformation_builder.row_filter_parser()
         return parser.parse(col_formula_str)
-
-    def _parse_col_rename(self, col_rename: str):
-        self._rename = lambda _name: col_rename
 
 
 class TransformationBuilder:
@@ -512,8 +509,8 @@ class TransformationBuilder:
     def add_col(self, name: str, col_id_str: str, col_visible: bool,
                 col_type_str: str, col_filter_str: str, col_map_str: str,
                 col_agg_str: str, col_rename_str: str):
-        builder = ColumnTransformationBuilder(self,
-                                              self._default_column_transformation)
+        builder = ExistingColumnTransformationBuilder(self,
+                                                      self._default_column_transformation)
         self._col_transformation_by_name[name] = builder.build(
             col_id_str, col_visible, col_type_str, col_filter_str, col_map_str,
             col_agg_str, col_rename_str)
@@ -521,8 +518,8 @@ class TransformationBuilder:
     def add_new_col(self, col_id_str: str, col_visible: bool,
                     col_formula_str: str, col_filter_str: str, col_agg_str: str,
                     col_name_str: str):
-        builder = NewColumnTransformationBuilder(self,
-                                                 self._default_column_transformation)
+        builder = NewColumnDefinitionBuilder(self,
+                                             self._default_column_transformation)
         self._new_col_transformations.append(
             builder.build(col_id_str, col_visible, col_formula_str,
                           col_filter_str, col_agg_str, col_name_str))

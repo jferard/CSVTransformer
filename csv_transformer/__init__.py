@@ -65,9 +65,9 @@ def parse_json_csv_out(expression_parser: ExpressionParser,
         path_func = lambda in_path: formula_path(in_path)
 
     if "encoding" in csv_out:
-        encoding_func = lambda _in_encoding: csv_out.pop("encoding")
+        def encoding_func(_in_encoding): return csv_out.pop("encoding")
     else:
-        encoding_func = lambda in_encoding: in_encoding
+        def encoding_func(in_encoding): return in_encoding
 
     return CsvOut(path_func, encoding_func, csv_out)
 

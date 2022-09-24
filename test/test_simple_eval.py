@@ -17,7 +17,7 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import operator
 import unittest
-from tokenize import TokenInfo
+from tokenize import TokenInfo, Token
 
 from csv_transformer import BINOP_BY_NAME, PREFIX_UNOP_BY_NAME, \
     INFIX_UNOP_BY_NAME
@@ -71,34 +71,48 @@ class BinopTestCase(unittest.TestCase):
         self.assertEqual("BinOp('bof')", repr(BinOp("bof", True, True, _f)))
 
     def test_eq(self):
-        self.assertEqual(BinOp("bof", True, True, _f), BinOp("bof", True, True, _f))
-        self.assertEqual(BinOp("bof", True, True, _f), BinOp("bof", True, True, _g))
-        self.assertNotEqual(BinOp("bof", True, True, _f), BinOp("bog", True, True, _f))
-        self.assertNotEqual(BinOp("bof", True, True, _f), BinOp("bog", True, True, _g))
+        self.assertEqual(BinOp("bof", True, True, _f),
+                         BinOp("bof", True, True, _f))
+        self.assertEqual(BinOp("bof", True, True, _f),
+                         BinOp("bof", True, True, _g))
+        self.assertNotEqual(BinOp("bof", True, True, _f),
+                            BinOp("bog", True, True, _f))
+        self.assertNotEqual(BinOp("bof", True, True, _f),
+                            BinOp("bog", True, True, _g))
         self.assertNotEqual(BinOp("bof", True, True, _f), object())
 
 
 class PrefixUnOpTestCase(unittest.TestCase):
     def test_repr(self):
-        self.assertEqual("PrefixUnOp('bof')", repr(PrefixUnOp("bof", True, True, _f)))
+        self.assertEqual("PrefixUnOp('bof')",
+                         repr(PrefixUnOp("bof", True, True, _f)))
 
     def test_eq(self):
-        self.assertEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bof", True, True, _f))
-        self.assertEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bof", True, True, _g))
-        self.assertNotEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bog", True, True, _f))
-        self.assertNotEqual(PrefixUnOp("bof", True, True, _f), PrefixUnOp("bog", True, True, _g))
+        self.assertEqual(PrefixUnOp("bof", True, True, _f),
+                         PrefixUnOp("bof", True, True, _f))
+        self.assertEqual(PrefixUnOp("bof", True, True, _f),
+                         PrefixUnOp("bof", True, True, _g))
+        self.assertNotEqual(PrefixUnOp("bof", True, True, _f),
+                            PrefixUnOp("bog", True, True, _f))
+        self.assertNotEqual(PrefixUnOp("bof", True, True, _f),
+                            PrefixUnOp("bog", True, True, _g))
         self.assertNotEqual(PrefixUnOp("bof", True, True, _f), object())
 
 
 class InfixUnOpTestCase(unittest.TestCase):
     def test_repr(self):
-        self.assertEqual("InfixUnOp('bof')", repr(InfixUnOp("bof", True, True, _f)))
+        self.assertEqual("InfixUnOp('bof')",
+                         repr(InfixUnOp("bof", True, True, _f)))
 
     def test_eq(self):
-        self.assertEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bof", True, True, _f))
-        self.assertEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bof", True, True, _g))
-        self.assertNotEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bog", True, True, _f))
-        self.assertNotEqual(InfixUnOp("bof", True, True, _f), InfixUnOp("bog", True, True, _g))
+        self.assertEqual(InfixUnOp("bof", True, True, _f),
+                         InfixUnOp("bof", True, True, _f))
+        self.assertEqual(InfixUnOp("bof", True, True, _f),
+                         InfixUnOp("bof", True, True, _g))
+        self.assertNotEqual(InfixUnOp("bof", True, True, _f),
+                            InfixUnOp("bog", True, True, _f))
+        self.assertNotEqual(InfixUnOp("bof", True, True, _f),
+                            InfixUnOp("bog", True, True, _g))
         self.assertNotEqual(InfixUnOp("bof", True, True, _f), object())
 
 
@@ -106,16 +120,20 @@ class MiscTestCase(unittest.TestCase):
     def test_to_date(self):
         self.assertEqual(dt.date(2010, 5, 1), to_date("2010-05-01"))
         self.assertEqual(dt.date(2010, 5, 1), to_date(dt.date(2010, 5, 1)))
-        self.assertEqual(dt.date(2010, 5, 1), to_date(dt.datetime(2010, 5, 1, 15, 30, 45)))
+        self.assertEqual(dt.date(2010, 5, 1),
+                         to_date(dt.datetime(2010, 5, 1, 15, 30, 45)))
         with self.assertRaises(ValueError):
             to_date("foo")
         with self.assertRaises(ValueError):
             to_date(1)
 
     def test_to_datetime(self):
-        self.assertEqual(dt.datetime(2010, 5, 1, 12, 30, 15), to_datetime("2010-05-01 12:30:15"))
-        self.assertEqual(dt.datetime(2010, 5, 1, 0, 0), to_datetime(dt.date(2010, 5, 1)))
-        self.assertEqual(dt.datetime(2010, 5, 1, 15, 30, 45), to_datetime(dt.datetime(2010, 5, 1, 15, 30, 45)))
+        self.assertEqual(dt.datetime(2010, 5, 1, 12, 30, 15),
+                         to_datetime("2010-05-01 12:30:15"))
+        self.assertEqual(dt.datetime(2010, 5, 1, 0, 0),
+                         to_datetime(dt.date(2010, 5, 1)))
+        self.assertEqual(dt.datetime(2010, 5, 1, 15, 30, 45),
+                         to_datetime(dt.datetime(2010, 5, 1, 15, 30, 45)))
         with self.assertRaises(ValueError):
             to_datetime("foo")
         with self.assertRaises(ValueError):
@@ -202,7 +220,7 @@ class ShuntingYardTestCase(unittest.TestCase):
 
     def test_shunting_yard3(self):
         tokens = tokenize_expr(
-           "str(day('2015-05-03'))+'/'+str(month('2015-05-03'))+'/'+str(year('2015-05-03'))")
+            "str(day('2015-05-03'))+'/'+str(month('2015-05-03'))+'/'+str(year('2015-05-03'))")
         self.assertEqual(
             ['STOP',
              'STOP',
@@ -251,8 +269,10 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(2, eval_expr("--2"))
         self.assertEqual(-2, eval_expr("-(-2+4)"))
         self.assertEqual(1, eval_expr("2--2 - 3", debug=True))
-        self.assertEqual("2-8", eval_expr("format('{}{}', -round(-2.5), -2*4)", debug=True))
-        self.assertEqual("2.5-8", eval_expr("format('{}{}', -(-2.5), -2*4)", debug=True))
+        self.assertEqual("2-8", eval_expr("format('{}{}', -round(-2.5), -2*4)",
+                                          debug=True))
+        self.assertEqual("2.5-8",
+                         eval_expr("format('{}{}', -(-2.5), -2*4)", debug=True))
 
     def test_eval_expr(self):
         self.assertEqual(10, eval_expr("5*2"))
@@ -294,36 +314,55 @@ class EvalTestCase(unittest.TestCase):
         self.assertEqual(2, eval_expr("if(x > 2, 2, x)", {"x": 4}))
 
     def test_eval_case(self):
-        self.assertEqual(-2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": -4}))
-        self.assertEqual(1, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 1}))
-        self.assertEqual(2, eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 4}))
+        self.assertEqual(-2,
+                         eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": -4}))
+        self.assertEqual(1,
+                         eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 1}))
+        self.assertEqual(2,
+                         eval_expr("case(x > 2, 2, x < -2, -2, x)", {"x": 4}))
 
     def test_eval_add_date(self):
-        self.assertEqual(dt.date(2016, 1, 12), eval_expr("add_years(date('2014-01-12'), 2)"))
-        self.assertEqual(dt.date(2014, 3, 12), eval_expr("add_months(date('2014-01-12'), 2)"))
-        self.assertEqual(dt.date(2014, 2, 11), eval_expr("add_days(date('2014-01-12'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 13, 6, 0), eval_expr("add_hours(date('2014-01-12'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 12, 0, 30), eval_expr("add_minutes(date('2014-01-12'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 12, 0, 0, 30), eval_expr("add_seconds(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.date(2016, 1, 12),
+                         eval_expr("add_years(date('2014-01-12'), 2)"))
+        self.assertEqual(dt.date(2014, 3, 12),
+                         eval_expr("add_months(date('2014-01-12'), 2)"))
+        self.assertEqual(dt.date(2014, 2, 11),
+                         eval_expr("add_days(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 13, 6, 0),
+                         eval_expr("add_hours(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 0, 30),
+                         eval_expr("add_minutes(date('2014-01-12'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 0, 0, 30),
+                         eval_expr("add_seconds(date('2014-01-12'), 30)"))
 
     def test_eval_add_datetime(self):
-        self.assertEqual(dt.datetime(2016, 1, 12, 12, 30, 21), eval_expr("add_years(datetime('2014-01-12 12:30:21'), 2)"))
-        self.assertEqual(dt.datetime(2014, 3, 12, 12, 30, 21), eval_expr("add_months(datetime('2014-01-12 12:30:21'), 2)"))
-        self.assertEqual(dt.datetime(2014, 2, 11, 12, 30, 21), eval_expr("add_days(datetime('2014-01-12 12:30:21'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 13, 18, 30, 21), eval_expr("add_hours(datetime('2014-01-12 12:30:21'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 12, 13, 0, 21), eval_expr("add_minutes(datetime('2014-01-12 12:30:21'), 30)"))
-        self.assertEqual(dt.datetime(2014, 1, 12, 12, 30, 51), eval_expr("add_seconds(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2016, 1, 12, 12, 30, 21), eval_expr(
+            "add_years(datetime('2014-01-12 12:30:21'), 2)"))
+        self.assertEqual(dt.datetime(2014, 3, 12, 12, 30, 21), eval_expr(
+            "add_months(datetime('2014-01-12 12:30:21'), 2)"))
+        self.assertEqual(dt.datetime(2014, 2, 11, 12, 30, 21), eval_expr(
+            "add_days(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 13, 18, 30, 21), eval_expr(
+            "add_hours(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 13, 0, 21), eval_expr(
+            "add_minutes(datetime('2014-01-12 12:30:21'), 30)"))
+        self.assertEqual(dt.datetime(2014, 1, 12, 12, 30, 51), eval_expr(
+            "add_seconds(datetime('2014-01-12 12:30:21'), 30)"))
 
     def test_eval_age(self):
         # 2013-01-13 + 1 year = 2014-01-13
         # 2014-01-13 + 0 month = 2014-01-13
-        self.assertEqual(dt.date(2014, 1, 13)+dt.timedelta(days=30), dt.date(2014, 2, 12))
-        self.assertEqual((1, 0, 30), eval_expr("age(date('2014-02-12'), date('2013-01-13'))"))
+        self.assertEqual(dt.date(2014, 1, 13) + dt.timedelta(days=30),
+                         dt.date(2014, 2, 12))
+        self.assertEqual((1, 0, 30), eval_expr(
+            "age(date('2014-02-12'), date('2013-01-13'))"))
 
         # 1975-04-20 + 38 years = 2013-04-20
         # 2013-04-20 + 8 months = 2013-12-20
-        self.assertEqual(dt.date(2013, 12, 20)+dt.timedelta(days=23), dt.date(2014, 1, 12))
-        self.assertEqual((38, 8, 23), eval_expr("age(datetime('2014-01-12 12:30:21'), datetime('1975-04-20 13:30:00'))"))
+        self.assertEqual(dt.date(2013, 12, 20) + dt.timedelta(days=23),
+                         dt.date(2014, 1, 12))
+        self.assertEqual((38, 8, 23), eval_expr(
+            "age(datetime('2014-01-12 12:30:21'), datetime('1975-04-20 13:30:00'))"))
 
     def test_precedence(self):
         self.assertEqual(13, eval_expr("3+5*2"))
@@ -336,6 +375,12 @@ class EvalTestCase(unittest.TestCase):
     def test_err_comma(self):
         with self.assertRaises(ValueError):
             eval_expr("1+2.5,")
+
+    def test_err_token(self):
+        with self.assertRaises(ValueError):
+            ShuntingYard(False, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                         INFIX_UNOP_BY_NAME).process(
+                iter([TokenInfo(ENCODING, "", 1, 1, 1), TokenInfo(ENCODING, "", 1, 1, 1)]))
 
 
 def eval_expr(s: str, value_by_name: Optional[Mapping[str, Any]] = None,
