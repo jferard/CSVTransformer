@@ -479,7 +479,7 @@ class CSVTransformerParserTestCase(unittest.TestCase):
             }
         }
         factory = TransformationBuilder(
-            False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+            False, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
         )
         transformation = TransformationJsonParser(
@@ -497,7 +497,7 @@ class CSVTransformerParserTestCase(unittest.TestCase):
             }
         }
         factory = TransformationBuilder(
-            False, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+            False, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME
         )
         transformation = TransformationJsonParser(
@@ -585,9 +585,9 @@ class DefaultColumnTransformationTestCase(unittest.TestCase):
 
 class NewColumnDefinitionTestCase(unittest.TestCase):
     def test_name(self):
-        builder = TransformationBuilder(False, FUNC_BY_TYPE, FUNC_BY_AGG,
-                                        BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
-                                        INFIX_UNOP_BY_NAME)
+        builder = TransformationBuilder(
+            False, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+            PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)
         df = NewColumnDefinitionBuilder(builder, None).build("id", True, "f",
                                                              "f", "f", "name")
         self.assertEqual("name", df.name())
@@ -595,8 +595,19 @@ class NewColumnDefinitionTestCase(unittest.TestCase):
 
 class ExpressionParserTestCase(unittest.TestCase):
     def test_func(self):
-        f = ExpressionParser(BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+        f = ExpressionParser("it", BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
                              INFIX_UNOP_BY_NAME).parse("it * 2")
+        self.assertEqual(6, f(3))
+
+    def test_func_other_it_ko(self):
+        f = ExpressionParser("x", BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                             INFIX_UNOP_BY_NAME).parse("it * 2")
+        with self.assertRaises(KeyError):
+            f(3)
+
+    def test_func_other_it_ok(self):
+        f = ExpressionParser("x", BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+                             INFIX_UNOP_BY_NAME).parse("x * 2")
         self.assertEqual(6, f(3))
 
 
@@ -622,9 +633,8 @@ class HeaderTestCase(unittest.TestCase):
 
 class CSVOutTestCase(unittest.TestCase):
     def setUp(self):
-        self._expression_parser = ExpressionParser(BINOP_BY_NAME,
-                                                   PREFIX_UNOP_BY_NAME,
-                                                   INFIX_UNOP_BY_NAME)
+        self._expression_parser = ExpressionParser(
+            "it", BINOP_BY_NAME, PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)
 
     def test_formula1(self):
         csv_out = parse_json_csv_out(self._expression_parser,

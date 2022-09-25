@@ -326,25 +326,29 @@ class RiskyEntityFilterParser:
 class ExpressionParser:
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, binop_by_name, prefix_unop_by_name,
+    def __init__(self, it_name: str, binop_by_name, prefix_unop_by_name,
                  infix_unop_by_name):
-        self.binop_by_name = binop_by_name
-        self.prefix_unop_by_name = prefix_unop_by_name
-        self.infix_unop_by_name = infix_unop_by_name
+        self._it_name = it_name
+        self._binop_by_name = binop_by_name
+        self._prefix_unop_by_name = prefix_unop_by_name
+        self._infix_unop_by_name = infix_unop_by_name
 
     def parse(self, expression_str: str) -> Expression:
         tokens = tokenize_expr(expression_str)
-        tokens = ShuntingYard(False, self.binop_by_name,
-                              self.prefix_unop_by_name,
-                              self.infix_unop_by_name).process(tokens)
-        return lambda v: evaluate(tokens, {"it": v})
+        tokens = ShuntingYard(False, self._binop_by_name,
+                              self._prefix_unop_by_name,
+                              self._infix_unop_by_name).process(tokens)
+        return lambda v: evaluate(tokens, {self._it_name: v})
 
 
 class RiskyExpressionParser:
     _logger = logging.getLogger(__name__)
 
+    def __init__(self, it_name: str):
+        self._it_name = it_name
+
     def parse(self, expression_str: str) -> Expression:
-        return lambda v: eval(expression_str, {}, {"it": v})
+        return lambda v: eval(expression_str, {}, {self._it_name: v})
 
 
 class ColumnTransformationBuilder(abc.ABC):
@@ -455,9 +459,11 @@ class NewColumnDefinitionBuilder(ColumnTransformationBuilder):
 
 
 class TransformationBuilder:
-    def __init__(self, risky: bool, func_by_type, func_by_agg, binop_by_name,
+    def __init__(self, risky: bool, it_name: str, func_by_type, func_by_agg,
+                 binop_by_name,
                  prefix_unop_by_name, infix_unop_by_name):
         self._risky = risky
+        self._it_name = it_name
         self._func_by_type = func_by_type
         self._func_by_agg = func_by_agg
         self._binop_by_name = binop_by_name
@@ -493,11 +499,11 @@ class TransformationBuilder:
     def expression_parser(self) -> Union[
         RiskyExpressionParser, ExpressionParser]:
         if self._risky:
-            return RiskyExpressionParser()
+            return RiskyExpressionParser(self._it_name)
         else:
-            return ExpressionParser(self._binop_by_name,
-                                    self._prefix_unop_by_name,
-                                    self._infix_unop_by_name)
+            return ExpressionParser(
+                self._it_name, self._binop_by_name, self._prefix_unop_by_name,
+                self._infix_unop_by_name)
 
     def build(self) -> Transformation:
         return Transformation(self._entity_filter, self._agg_filter,

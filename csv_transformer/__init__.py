@@ -84,7 +84,7 @@ def main(csv_in_dict: JSONValue, transformation_dict: JSONValue,
 def create_executor(transformation_dict: JSONValue, csv_out_dict: JSONValue,
                     risky: bool = False, limit: int = None):
     transformation_builder = TransformationBuilder(
-        risky, FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
+        risky, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
         INFIX_UNOP_BY_NAME)
     transformation = TransformationJsonParser(transformation_builder).parse(
         transformation_dict)
