@@ -125,15 +125,13 @@ class Executor:
 
     def execute(self, csv_in: CsvIn) -> Path:
         with csv_in.reader() as reader, self._csv_out.writer(csv_in) as writer:
-            for row in self.rows(reader, self._transformation,
-                                 self._limit):
+            for row in self.rows(reader):
                 writer.writerow(row)
 
         return self._csv_out.path(csv_in.path)
 
-    def rows(self, reader: csv.reader,
-             transformation: Transformation, limit: int = None
-             ) -> Iterator[TypedRow]:
+    def rows(self, reader: csv.reader) -> Iterator[TypedRow]:
+        transformation = self._transformation
         header = next(reader)
         clean_header = transformation.add_fields(header)
         clean_header = improve_header(clean_header)
@@ -145,43 +143,36 @@ class Executor:
         if transformation.has_agg():
             if transformation.has_order():
                 for value_by_id in sorted(
-                        self._single_rows(
-                            reader, limit, transformation, col_ids),
+                        self._single_rows(reader, col_ids),
                         key=transformation.create_key(col_ids)):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
-                for value_by_id in self._single_rows(
-                        reader, limit, transformation, col_ids):
+                for value_by_id in self._single_rows(reader, col_ids):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
         else:
             if transformation.has_order():
                 for value_by_id in sorted(
-                        self._agg_rows(reader, limit, transformation,
-                                       col_ids),
+                        self._agg_rows(reader, col_ids),
                         key=transformation.create_key(col_ids)):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
-                for value_by_id in self._agg_rows(reader, limit,
-                                                  transformation,
-                                                  col_ids):
+                for value_by_id in self._agg_rows(reader, col_ids):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
 
     def _single_rows(
-            self, reader: TextIO, limit: int, transformation: Transformation,
-            col_ids: Iterable[str]) -> Iterator[TypedRow]:
-        for row in itertools.islice(reader, limit):
+            self, reader: TextIO, col_ids: Iterable[str]) -> Iterator[TypedRow]:
+        for row in itertools.islice(reader, self._limit):
             value_by_id = dict(zip(col_ids, row))
-            transformation.take_or_ignore(value_by_id)
+            self._transformation.take_or_ignore(value_by_id)
 
-        for value_by_id in transformation.agg_rows():
-            if transformation.agg_filter(value_by_id):
+        for value_by_id in self._transformation.agg_rows():
+            if self._transformation.agg_filter(value_by_id):
                 yield value_by_id
 
     def _agg_rows(
-            self, reader: TextIO, limit: int, transformation: Transformation,
-            col_ids: Iterable[str]) -> Iterator[TypedRow]:
-        for row in itertools.islice(reader, limit):
+            self, reader: TextIO, col_ids: Iterable[str]) -> Iterator[TypedRow]:
+        for row in itertools.islice(reader, self._limit):
             value_by_id = dict(zip(col_ids, row))
-            value_by_id = transformation.transform(value_by_id)
+            value_by_id = self._transformation.transform(value_by_id)
             if value_by_id is not None:
                 yield value_by_id
