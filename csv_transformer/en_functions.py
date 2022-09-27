@@ -163,7 +163,10 @@ FUNC_BY_AGG = {
     "variance": statistics.variance,
     "min": min,
     "max": max,
-    "string_agg": lambda xs: ", ".join(map(str, xs))
+    "string_agg": lambda xs: ", ".join(map(str, xs)),
+    "d_string_agg": lambda xs: ", ".join(set(map(str, xs))),
+    "o_string_agg": lambda xs: ", ".join(sorted(map(str, xs))),
+    "do_string_agg": lambda xs: ", ".join(sorted(set(map(str, xs)))),
 }
 
 FUNC_BY_TYPE = {
