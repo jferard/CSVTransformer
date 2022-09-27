@@ -468,6 +468,20 @@ class CSVTransformerAggTestCase(CSVTransformerTestCase):
             }
         }, csv_in_string, csv_out_string)
 
+    def test_string_agg2(self):
+        csv_in_string = "a,b\n1,Z\n1,Z\n1,X\n1,Y"
+        csv_out_string = "b\r\n\"X, Y, Z\"\r\n"
+
+        self._test_transformation({
+            "default_col": {"visible": False},
+            "cols": {
+                "b": {
+                    "visible": True,
+                    "agg": "do_string_agg"
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
     def test_order_agg(self):
         csv_in_string = "a,b\n1,2\n1,3\n2,3\n2,-1"
         csv_out_string = "a,b\r\n2,2.0\r\n1,5.0\r\n"
