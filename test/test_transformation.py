@@ -468,6 +468,34 @@ class CSVTransformerAggTestCase(CSVTransformerTestCase):
             }
         }, csv_in_string, csv_out_string)
 
+    def test_order_agg(self):
+        csv_in_string = "a,b\n1,2\n1,3\n2,3\n2,-1"
+        csv_out_string = "a,b\r\n2,2.0\r\n1,5.0\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "sum",
+                    "order": 1
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_order_agg_neg(self):
+        csv_in_string = "a,b\n1,2\n1,3\n2,3\n2,-1"
+        csv_out_string = "a,b\r\n1,5.0\r\n2,2.0\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "b": {
+                    "type": "float(it)",
+                    "agg": "sum",
+                    "order": -1
+                }
+            }
+        }, csv_in_string, csv_out_string)
+
     def test_extra(self):
         csv_in_string = "a\n1,2,3\n4,5,6"
         csv_out_string = "a,ex_1,ex_2,ex_3\r\n5.0,7.0,9.0,\r\n"
