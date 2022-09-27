@@ -72,6 +72,12 @@ class ColumnTransformation:
     def col_filter(self, value: Any) -> bool:
         return self._filter(value)
 
+    def has_order(self) -> bool:
+        return self._order is not None
+
+    def order(self) -> int:
+        return self._order
+
     def has_agg(self) -> bool:
         return self._agg is not None
 
@@ -198,10 +204,26 @@ class Transformation:
         except KeyError:
             return self._default_column_transformation.rename(name)
 
+    def has_order(self) -> bool:
+        return any(self._col_has_order(col_id)
+                   for col_id in self._col_transformation_by_id)
+
     # DISPATCH
     def has_agg(self) -> bool:
         return any(self._col_is_agg(col_id)
-                   for col_id in self._existing_col_transformation_by_id)
+                   for col_id in self._col_transformation_by_id)
+
+    def _col_has_order(self, col_id: str) -> bool:
+        try:
+            return self._col_transformation_by_id[col_id].has_order()
+        except KeyError:
+            return False
+
+    def order(self, col_id: str) -> int:
+        try:
+            return self._col_transformation_by_id[col_id].order()
+        except KeyError:
+            return -1
 
     def _col_is_agg(self, col_id: str) -> bool:
         try:
