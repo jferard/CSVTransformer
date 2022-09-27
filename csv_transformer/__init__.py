@@ -19,14 +19,14 @@ import csv
 import itertools
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TextIO, Iterable, Iterator
 
 from csv_transformer.en_functions import (
     FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
     INFIX_UNOP_BY_NAME)
 from csv_transformer.transformation import (
     TransformationJsonParser, improve_header, JSONValue, TransformationBuilder,
-    Transformation, Expression, ExpressionParser)
+    Transformation, Expression, ExpressionParser, TypedRow)
 
 
 class CsvIn:
@@ -65,9 +65,11 @@ def parse_json_csv_out(expression_parser: ExpressionParser,
         path_func = lambda in_path: formula_path(in_path)
 
     if "encoding" in csv_out:
-        def encoding_func(_in_encoding): return csv_out.pop("encoding")
+        def encoding_func(_in_encoding):
+            return csv_out.pop("encoding")
     else:
-        def encoding_func(in_encoding): return in_encoding
+        def encoding_func(in_encoding):
+            return in_encoding
 
     return CsvOut(path_func, encoding_func, csv_out)
 
@@ -84,8 +86,8 @@ def main(csv_in_dict: JSONValue, transformation_dict: JSONValue,
 def create_executor(transformation_dict: JSONValue, csv_out_dict: JSONValue,
                     risky: bool = False, limit: int = None):
     transformation_builder = TransformationBuilder(
-        risky, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
-        INFIX_UNOP_BY_NAME)
+        risky, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
+        PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)
     transformation = TransformationJsonParser(transformation_builder).parse(
         transformation_dict)
     csv_out = parse_json_csv_out(transformation_builder.expression_parser(),
@@ -101,7 +103,8 @@ class Executor:
         self._csv_out = csv_out
         self._limit = limit
 
-    def execute(self, csv_in: CsvIn):
+    def execute(self, csv_in: CsvIn) -> Path:
+        # TODO use contextlib and add CsvIn.reader(path), CsvOut.writer(...)
         in_encoding = csv_in.encoding
         in_path = csv_in.path
         in_fmtparams = csv_in.fmtparams
@@ -113,7 +116,10 @@ class Executor:
                 out_path.open("w", encoding=out_encoding, newline="") as d:
             writer = csv.writer(d, **out_fmtparams)
             reader = csv.reader(s, **in_fmtparams)
+            # TODO: yield rows
             execute_rw(reader, self._transformation, writer, self._limit)
+
+        return out_path
 
 
 def execute_rw(reader: csv.reader, transformation: Transformation,
@@ -128,18 +134,48 @@ def execute_rw(reader: csv.reader, transformation: Transformation,
     col_ids = transformation.col_ids(clean_header)
     visible_col_ids = transformation.visible_col_ids(clean_header)
     if transformation.has_agg():
-        for row in itertools.islice(reader, limit):
-            value_by_id = dict(zip(col_ids, row))
-            transformation.take_or_ignore(value_by_id)
-
-        for value_by_id in transformation.agg_rows():
-            if transformation.agg_filter(value_by_id):
+        if transformation.has_order():
+            for value_by_id in sorted(
+                    _row_generator(reader, limit, transformation, col_ids),
+                    key=transformation.create_key(col_ids)):
+                writer.writerow(
+                    [value_by_id.get(i, "") for i in visible_col_ids])
+        else:
+            for value_by_id in _row_generator(reader, limit, transformation,
+                                              col_ids):
                 writer.writerow(
                     [value_by_id.get(i, "") for i in visible_col_ids])
     else:
-        for row in itertools.islice(reader, limit):
-            value_by_id = dict(zip(col_ids, row))
-            value_by_id = transformation.transform(value_by_id)
-            if value_by_id is not None:
+        if transformation.has_order():
+            for value_by_id in sorted(
+                    _agg_generator(reader, limit, transformation, col_ids),
+                    key=transformation.create_key(col_ids)):
                 writer.writerow(
                     [value_by_id.get(i, "") for i in visible_col_ids])
+        else:
+            for value_by_id in _agg_generator(reader, limit, transformation,
+                                              col_ids):
+                writer.writerow(
+                    [value_by_id.get(i, "") for i in visible_col_ids])
+
+
+def _row_generator(reader: TextIO, limit: int, transformation: Transformation,
+                   col_ids: Iterable[str]
+                   ) -> Iterator[TypedRow]:
+    for row in itertools.islice(reader, limit):
+        value_by_id = dict(zip(col_ids, row))
+        transformation.take_or_ignore(value_by_id)
+
+    for value_by_id in transformation.agg_rows():
+        if transformation.agg_filter(value_by_id):
+            yield value_by_id
+
+
+def _agg_generator(reader: TextIO, limit: int, transformation: Transformation,
+                   col_ids: Iterable[str]
+                   ) -> Iterator[TypedRow]:
+    for row in itertools.islice(reader, limit):
+        value_by_id = dict(zip(col_ids, row))
+        value_by_id = transformation.transform(value_by_id)
+        if value_by_id is not None:
+            yield value_by_id

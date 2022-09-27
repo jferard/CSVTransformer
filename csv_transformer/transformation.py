@@ -321,6 +321,17 @@ class Transformation:
     def agg_filter(self, value_by_id: TypedRow) -> bool:
         return self._agg_filter(value_by_id)
 
+    def create_key(self, col_ids: Iterable[str]) -> Callable[[TypedRow], Any]:
+        ordered_ids = sorted(
+            [col_id for col_id in col_ids if self._col_has_order(col_id)],
+            key=lambda col_id: abs(self.order(col_id)))
+        signs = [1 if self.order(col_id) >= 0 else -1 for col_id in ordered_ids]
+
+        def aux(value_by_id: TypedRow) -> Any:
+            return tuple([s * value_by_id[col_id] for s, col_id in
+                          zip(signs, ordered_ids)])
+
+        return aux
 
 class EntityFilterParser:
     _logger = logging.getLogger(__name__)
