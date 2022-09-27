@@ -60,10 +60,11 @@ class DefaultColumnTransformation:
 
 class ColumnTransformation:
     def __init__(self, col_visible: bool, col_filter: ColFilter,
-                 col_agg: Optional[ColAgg]):
+                 col_agg: Optional[ColAgg], col_order: Optional[int]):
         self._visible = col_visible
         self._filter = col_filter
         self._agg = col_agg
+        self._order = col_order
 
     def is_visible(self) -> bool:
         return self._visible
@@ -81,9 +82,10 @@ class ColumnTransformation:
 class ExistingColumnTransformation(ColumnTransformation):
     def __init__(self, col_id: ColRename, col_visible: bool, col_type: ColType,
                  col_filter: ColFilter, col_map: Expression,
-                 col_agg: Optional[ColAgg], col_rename: ColRename):
-        ColumnTransformation.__init__(self, col_visible, col_filter,
-                                      col_agg)
+                 col_agg: Optional[ColAgg], col_rename: ColRename,
+                 col_order: int):
+        ColumnTransformation.__init__(self, col_visible, col_filter, col_agg,
+                                      col_order)
         self._id = col_id
         self._type = col_type
         self._map = col_map
@@ -105,9 +107,9 @@ class ExistingColumnTransformation(ColumnTransformation):
 class NewColumnDefinition(ColumnTransformation):
     def __init__(self, col_id_str: str, col_visible: bool,
                  col_filter: ColFilter, col_formula: EntityExpression,
-                 col_agg: Optional[ColAgg], col_name: str):
-        ColumnTransformation.__init__(self, col_visible, col_filter,
-                                      col_agg)
+                 col_agg: Optional[ColAgg], col_name: str, col_order: int):
+        ColumnTransformation.__init__(self, col_visible, col_filter, col_agg,
+                                      col_order)
         self._col_id_str = col_id_str
         self._formula = col_formula
         self._agg = col_agg
@@ -166,9 +168,8 @@ class Transformation:
         return h
 
     def col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
-        return [self._existing_col_id(n) for n in header] + [nt.get_id() for nt
-                                                             in
-                                                             self._new_col_definitions]
+        return [self._existing_col_id(n) for n in header] + [
+            nt.get_id() for nt in self._new_col_definitions]
 
     def visible_col_ids(self, header: Iterable[str]) -> List[Optional[str]]:
         return [
@@ -387,9 +388,10 @@ class ExistingColumnTransformationBuilder(ColumnTransformationBuilder):
     _logger = logging.getLogger(__name__)
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
-              col_type_str: str, col_filter_str: str, col_map_str: str,
-              col_agg_str: str,
-              col_rename_str: str) -> ExistingColumnTransformation:
+              col_type_str: Optional[str], col_filter_str: Optional[str],
+              col_map_str: Optional[str], col_agg_str: Optional[str],
+              col_rename_str: Optional[str], col_order: Optional[int]
+              ) -> ExistingColumnTransformation:
 
         col_rename = self._parse_col_rename(col_rename_str)
         if col_id_str is None:
@@ -402,9 +404,9 @@ class ExistingColumnTransformationBuilder(ColumnTransformationBuilder):
         col_map = self._parse_col_map(col_map_str)
         col_agg = self._parse_col_agg(col_agg_str)
 
-        return ExistingColumnTransformation(col_id, col_visible, col_type,
-                                            col_filter,
-                                            col_map, col_agg, col_rename)
+        return ExistingColumnTransformation(
+            col_id, col_visible, col_type, col_filter, col_map, col_agg,
+            col_rename, col_order)
 
     def _parse_col_id(self, col_id_str: str) -> ColRename:
         return lambda _name: col_id_str
@@ -438,8 +440,8 @@ class NewColumnDefinitionBuilder(ColumnTransformationBuilder):
 
     def build(self, col_id_str: str, col_visible: Optional[bool],
               col_formula_str: Optional[str], col_filter_str: Optional[str],
-              col_agg_str: Optional[str],
-              col_name_str: Optional[str]) -> NewColumnDefinition:
+              col_agg_str: Optional[str], col_name_str: Optional[str],
+              col_order: Optional[int]) -> NewColumnDefinition:
         col_id = col_id_str
         col_visible = self._parse_col_visible(col_visible)
         col_filter = self._parse_col_filter(col_filter_str)
@@ -450,8 +452,9 @@ class NewColumnDefinitionBuilder(ColumnTransformationBuilder):
             col_name = col_name_str
         col_agg = self._parse_col_agg(col_agg_str)
 
-        return NewColumnDefinition(col_id, col_visible, col_filter,
-                                   col_formula, col_agg, col_name)
+        return NewColumnDefinition(
+            col_id, col_visible, col_filter, col_formula, col_agg, col_name,
+            col_order)
 
     def _parse_col_formula(self, col_formula_str: str) -> Expression:
         parser = self._transformation_builder.row_filter_parser()
@@ -476,7 +479,7 @@ class TransformationBuilder:
         self._col_transformation_by_name = cast(
             Dict[str, ExistingColumnTransformation],
             {})
-        self._new_col_transformations = cast(
+        self._new_col_definitions = cast(
             List[NewColumnDefinition], [])
         self._extra_prefix = "extra"
         self._extra_count = 1024
@@ -509,26 +512,26 @@ class TransformationBuilder:
         return Transformation(self._entity_filter, self._agg_filter,
                               self._default_column_transformation,
                               self._col_transformation_by_name,
-                              self._new_col_transformations,
+                              self._new_col_definitions,
                               self._extra_prefix, self._extra_count)
 
     def add_col(self, name: str, col_id_str: str, col_visible: bool,
                 col_type_str: str, col_filter_str: str, col_map_str: str,
-                col_agg_str: str, col_rename_str: str):
-        builder = ExistingColumnTransformationBuilder(self,
-                                                      self._default_column_transformation)
+                col_agg_str: str, col_rename_str: str, col_order: int):
+        builder = ExistingColumnTransformationBuilder(
+            self, self._default_column_transformation)
         self._col_transformation_by_name[name] = builder.build(
             col_id_str, col_visible, col_type_str, col_filter_str, col_map_str,
-            col_agg_str, col_rename_str)
+            col_agg_str, col_rename_str, col_order)
 
     def add_new_col(self, col_id_str: str, col_visible: bool,
                     col_formula_str: str, col_filter_str: str, col_agg_str: str,
-                    col_name_str: str):
+                    col_name_str: str, col_order: int):
         builder = NewColumnDefinitionBuilder(self,
                                              self._default_column_transformation)
-        self._new_col_transformations.append(
+        self._new_col_definitions.append(
             builder.build(col_id_str, col_visible, col_formula_str,
-                          col_filter_str, col_agg_str, col_name_str))
+                          col_filter_str, col_agg_str, col_name_str, col_order))
 
     def entity_filter(self, entity_filter_str: str):
         parser = self.row_filter_parser()
@@ -592,13 +595,13 @@ class TransformationJsonParser:
             col_type_str = json_col.get("type", None)
             col_filter_str = json_col.get("filter", None)
             col_map_str = json_col.get("map", None)
-            col_rename_str = json_col.get("rename", None)
             col_agg_str = json_col.get("agg", None)
+            col_rename_str = json_col.get("rename", None)
+            col_order = json_col.get("order", None)
 
-            self._transformation_builder.add_col(name, col_id_str, col_visible,
-                                                 col_type_str, col_filter_str,
-                                                 col_map_str, col_agg_str,
-                                                 col_rename_str)
+            self._transformation_builder.add_col(
+                name, col_id_str, col_visible, col_type_str, col_filter_str,
+                col_map_str, col_agg_str, col_rename_str, col_order)
 
     def _parse_new_cols(self, new_cols):
         for new_col in new_cols:
@@ -606,14 +609,13 @@ class TransformationJsonParser:
             col_visible = new_col.get("visible", None)
             col_filter_str = new_col.get("filter", None)
             col_formula_str = new_col.get("formula_path", None)
-            col_rename_str = new_col.get("rename", None)
             col_agg_str = new_col.get("agg", None)
+            col_rename_str = new_col.get("rename", None)
+            col_order = new_col.get("order", None)
 
-            self._transformation_builder.add_new_col(col_id_str, col_visible,
-                                                     col_formula_str,
-                                                     col_filter_str,
-                                                     col_agg_str,
-                                                     col_rename_str)
+            self._transformation_builder.add_new_col(
+                col_id_str, col_visible, col_formula_str, col_filter_str,
+                col_agg_str, col_rename_str, col_order)
 
     def _parse_default_col(self, default_col: JSONValue):
         self._transformation_builder.default_col(
