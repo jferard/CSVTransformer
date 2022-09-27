@@ -86,6 +86,28 @@ class CSVTransformerWithoutAggTestCase(CSVTransformerTestCase):
         self._test_transformation({
         }, csv_in_string, csv_out_string)
 
+    def test_order(self):
+        csv_in_string = "a,b\n1,2\n3,2\n1,1"
+        csv_out_string = "a,b\r\n1,1\r\n1,2\r\n3,2\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a": {"order": 1},
+                "b": {"order": 2},
+            }
+        }, csv_in_string, csv_out_string)
+
+    def test_full_order(self):
+        csv_in_string = "a,b,c\n1,2,5\n3,2,9\n1,1,-2\n3,1,4"
+        csv_out_string = "a,b,c\r\n1,2,5\r\n1,1,-2\r\n3,2,9\r\n3,1,4\r\n"
+
+        self._test_transformation({
+            "cols": {
+                "a": {"order": 1},
+                "c": {"order": -2},
+            }
+        }, csv_in_string, csv_out_string)
+
     def test_entity_filter(self):
         csv_in_string = "a,b\n1,2\n3,2\n1,1"
         csv_out_string = "a,b\r\n3,2\r\n1,1\r\n"
@@ -589,7 +611,7 @@ class NewColumnDefinitionTestCase(unittest.TestCase):
             False, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)
         df = NewColumnDefinitionBuilder(builder, None).build("id", True, "f",
-                                                             "f", "f", "name")
+                                                             "f", "f", "name", None)
         self.assertEqual("name", df.name())
 
 
