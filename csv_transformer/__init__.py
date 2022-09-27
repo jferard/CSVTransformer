@@ -125,15 +125,15 @@ class Executor:
 
     def execute(self, csv_in: CsvIn) -> Path:
         with csv_in.reader() as reader, self._csv_out.writer(csv_in) as writer:
-            for row in self._row_generator(reader, self._transformation,
-                                           self._limit):
+            for row in self.rows(reader, self._transformation,
+                                 self._limit):
                 writer.writerow(row)
 
         return self._csv_out.path(csv_in.path)
 
-    def _row_generator(self, reader: csv.reader,
-                       transformation: Transformation, limit: int = None
-                       ) -> Iterator[TypedRow]:
+    def rows(self, reader: csv.reader,
+             transformation: Transformation, limit: int = None
+             ) -> Iterator[TypedRow]:
         header = next(reader)
         clean_header = transformation.add_fields(header)
         clean_header = improve_header(clean_header)
@@ -145,28 +145,28 @@ class Executor:
         if transformation.has_agg():
             if transformation.has_order():
                 for value_by_id in sorted(
-                        self._single_row_generator(
+                        self._single_rows(
                             reader, limit, transformation, col_ids),
                         key=transformation.create_key(col_ids)):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
-                for value_by_id in self._single_row_generator(
+                for value_by_id in self._single_rows(
                         reader, limit, transformation, col_ids):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
         else:
             if transformation.has_order():
                 for value_by_id in sorted(
-                        self._agg_generator(reader, limit, transformation,
-                                            col_ids),
+                        self._agg_rows(reader, limit, transformation,
+                                       col_ids),
                         key=transformation.create_key(col_ids)):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
-                for value_by_id in self._agg_generator(reader, limit,
-                                                       transformation,
-                                                       col_ids):
+                for value_by_id in self._agg_rows(reader, limit,
+                                                  transformation,
+                                                  col_ids):
                     yield [value_by_id.get(i, "") for i in visible_col_ids]
 
-    def _single_row_generator(
+    def _single_rows(
             self, reader: TextIO, limit: int, transformation: Transformation,
             col_ids: Iterable[str]) -> Iterator[TypedRow]:
         for row in itertools.islice(reader, limit):
@@ -177,7 +177,7 @@ class Executor:
             if transformation.agg_filter(value_by_id):
                 yield value_by_id
 
-    def _agg_generator(
+    def _agg_rows(
             self, reader: TextIO, limit: int, transformation: Transformation,
             col_ids: Iterable[str]) -> Iterator[TypedRow]:
         for row in itertools.islice(reader, limit):
