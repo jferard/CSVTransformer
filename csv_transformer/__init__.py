@@ -125,55 +125,50 @@ class Executor:
 
     def execute(self, csv_in: CsvIn) -> Path:
         with csv_in.reader() as reader, self._csv_out.writer(csv_in) as writer:
-            # TODO: yield rows
-            self.execute_rw(reader, self._transformation, writer, self._limit)
+            for row in self._row_generator(reader, self._transformation,
+                                           self._limit):
+                writer.writerow(row)
 
         return self._csv_out.path(csv_in.path)
 
-    def execute_rw(self, reader: csv.reader, transformation: Transformation,
-                   writer: csv.writer, limit: int = None):
+    def _row_generator(self, reader: csv.reader,
+                       transformation: Transformation, limit: int = None
+                       ) -> Iterator[TypedRow]:
         header = next(reader)
         clean_header = transformation.add_fields(header)
         clean_header = improve_header(clean_header)
-        # write file header
-        file_header = transformation.file_header(clean_header)
-        writer.writerow(file_header)
+        # yield file header
+        yield transformation.file_header(clean_header)
         # the id header
         col_ids = transformation.col_ids(clean_header)
         visible_col_ids = transformation.visible_col_ids(clean_header)
         if transformation.has_agg():
             if transformation.has_order():
                 for value_by_id in sorted(
-                        self._row_generator(reader, limit, transformation,
-                                            col_ids),
+                        self._single_row_generator(
+                            reader, limit, transformation, col_ids),
                         key=transformation.create_key(col_ids)):
-                    writer.writerow(
-                        [value_by_id.get(i, "") for i in visible_col_ids])
+                    yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
-                for value_by_id in self._row_generator(reader, limit,
-                                                       transformation,
-                                                       col_ids):
-                    writer.writerow(
-                        [value_by_id.get(i, "") for i in visible_col_ids])
+                for value_by_id in self._single_row_generator(
+                        reader, limit, transformation, col_ids):
+                    yield [value_by_id.get(i, "") for i in visible_col_ids]
         else:
             if transformation.has_order():
                 for value_by_id in sorted(
                         self._agg_generator(reader, limit, transformation,
                                             col_ids),
                         key=transformation.create_key(col_ids)):
-                    writer.writerow(
-                        [value_by_id.get(i, "") for i in visible_col_ids])
+                    yield [value_by_id.get(i, "") for i in visible_col_ids]
             else:
                 for value_by_id in self._agg_generator(reader, limit,
                                                        transformation,
                                                        col_ids):
-                    writer.writerow(
-                        [value_by_id.get(i, "") for i in visible_col_ids])
+                    yield [value_by_id.get(i, "") for i in visible_col_ids]
 
-    def _row_generator(self, reader: TextIO, limit: int,
-                       transformation: Transformation,
-                       col_ids: Iterable[str]
-                       ) -> Iterator[TypedRow]:
+    def _single_row_generator(
+            self, reader: TextIO, limit: int, transformation: Transformation,
+            col_ids: Iterable[str]) -> Iterator[TypedRow]:
         for row in itertools.islice(reader, limit):
             value_by_id = dict(zip(col_ids, row))
             transformation.take_or_ignore(value_by_id)
@@ -182,10 +177,9 @@ class Executor:
             if transformation.agg_filter(value_by_id):
                 yield value_by_id
 
-    def _agg_generator(self, reader: TextIO, limit: int,
-                       transformation: Transformation,
-                       col_ids: Iterable[str]
-                       ) -> Iterator[TypedRow]:
+    def _agg_generator(
+            self, reader: TextIO, limit: int, transformation: Transformation,
+            col_ids: Iterable[str]) -> Iterator[TypedRow]:
         for row in itertools.islice(reader, limit):
             value_by_id = dict(zip(col_ids, row))
             value_by_id = transformation.transform(value_by_id)
