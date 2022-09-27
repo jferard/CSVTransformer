@@ -18,6 +18,7 @@
 import csv
 import itertools
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, TextIO, Iterable, Iterator
 
@@ -35,6 +36,11 @@ class CsvIn:
         self.encoding = encoding
         self.fmtparams = fmtparams
 
+    @contextmanager
+    def reader(self) -> csv.reader:
+        with self.path.open("r", encoding=self.encoding) as s:
+            yield csv.reader(s, **self.fmtparams)
+
 
 class CsvOut:
     def __init__(self, path_func: Callable[[Path], Path],
@@ -49,6 +55,15 @@ class CsvOut:
     def encoding(self, in_encoding: str) -> str:
         return self._encoding_func(in_encoding)
 
+    @contextmanager
+    def writer(self, csv_in: CsvIn) -> csv.writer:
+        in_encoding = csv_in.encoding
+        in_path = csv_in.path
+        out_encoding = self.encoding(in_encoding)
+        out_path = self.path(in_path)
+        with out_path.open("w", encoding=out_encoding, newline="") as d:
+            yield csv.writer(d, **self.fmtparams)
+
 
 def parse_json_csv_in(csv_in: JSONValue) -> CsvIn:
     return CsvIn(csv_in.pop("path"), csv_in.pop("encoding", "utf-8"),
@@ -58,11 +73,16 @@ def parse_json_csv_in(csv_in: JSONValue) -> CsvIn:
 def parse_json_csv_out(expression_parser: ExpressionParser,
                        csv_out: JSONValue) -> CsvOut:
     if "path" in csv_out:
-        path_func = lambda _in_path: csv_out.pop("path")
+        path = csv_out.pop("path")
+
+        def path_func(_in_path: Path) -> Path:
+            return path
     else:
         formula_path_str = csv_out.pop("formula_path")
         formula_path = expression_parser.parse(formula_path_str)
-        path_func = lambda in_path: formula_path(in_path)
+
+        def path_func(in_path: Path) -> Path:
+            return formula_path(in_path)
 
     if "encoding" in csv_out:
         def encoding_func(_in_encoding):
@@ -104,22 +124,11 @@ class Executor:
         self._limit = limit
 
     def execute(self, csv_in: CsvIn) -> Path:
-        # TODO use contextlib and add CsvIn.reader(path), CsvOut.writer(...)
-        in_encoding = csv_in.encoding
-        in_path = csv_in.path
-        in_fmtparams = csv_in.fmtparams
-        out_encoding = self._csv_out.encoding(in_encoding)
-        out_path = self._csv_out.path(in_path)
-        out_fmtparams = self._csv_out.fmtparams
-
-        with in_path.open("r", encoding=in_encoding) as s, \
-                out_path.open("w", encoding=out_encoding, newline="") as d:
-            writer = csv.writer(d, **out_fmtparams)
-            reader = csv.reader(s, **in_fmtparams)
+        with csv_in.reader() as reader, self._csv_out.writer(csv_in) as writer:
             # TODO: yield rows
             execute_rw(reader, self._transformation, writer, self._limit)
 
-        return out_path
+        return self._csv_out.path(csv_in.path)
 
 
 def execute_rw(reader: csv.reader, transformation: Transformation,
