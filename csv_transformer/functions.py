@@ -59,8 +59,14 @@ to_path = Path
 
 
 def with_stem(p: Union[Path, str], s: str):
+    path = to_path(p)
+    dirpath = path.parent
+    return dirpath / (s + path.suffix)
+
+
+def with_filename(p: Union[Path, str], filename: str):
     dirpath = to_path(p).parent
-    return dirpath / s
+    return dirpath / filename
 
 
 def add_years(d: dt.date, y: int) -> dt.date:

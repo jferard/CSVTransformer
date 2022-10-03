@@ -708,7 +708,7 @@ class CSVOutTestCase(unittest.TestCase):
     def test_formula2(self):
         csv_out = parse_json_csv_out(self._expression_parser,
                                      {
-                                         "formula_path": "with_stem(it, 'ko.csv')"})
+                                         "formula_path": "with_stem(it, 'ko')"})
         self.assertEqual(Path('/home/jferard/ko.csv'),
                          csv_out.path(Path("/home/jferard/ok.csv")))
 
