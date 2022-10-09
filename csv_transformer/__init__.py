@@ -20,7 +20,7 @@ import itertools
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, TextIO, Iterable, Iterator
+from typing import Callable, TextIO, Iterable, Iterator, Optional
 
 from csv_transformer.en_functions import (
     FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME, PREFIX_UNOP_BY_NAME,
@@ -94,17 +94,22 @@ def parse_json_csv_out(expression_parser: ExpressionParser,
     return CsvOut(path_func, encoding_func, csv_out)
 
 
-def main(csv_in_dict: JSONValue, transformation_dict: JSONValue,
-         csv_out_dict: JSONValue,
-         risky: bool = False, limit: int = None):
+def transform(transformation_dict: JSONValue, csv_in_dict: Optional[JSONValue] = None,
+              csv_out_dict: Optional[JSONValue] = None, risky: bool = False,
+              limit: int = None):
+    if csv_in_dict is None:
+        csv_in_dict = transformation_dict.pop("csv_in", {})
     executor = create_executor(transformation_dict, csv_out_dict, risky, limit)
 
     csv_in = parse_json_csv_in(csv_in_dict)
     executor.execute(csv_in)
 
 
-def create_executor(transformation_dict: JSONValue, csv_out_dict: JSONValue,
+def create_executor(transformation_dict: JSONValue,
+                    csv_out_dict: Optional[JSONValue] = None,
                     risky: bool = False, limit: int = None):
+    if csv_out_dict is None:
+        csv_out_dict = transformation_dict.pop("csv_out", {})
     transformation_builder = TransformationBuilder(
         risky, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
         PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)

@@ -20,7 +20,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from csv_transformer import main, TransformationJsonParser, parse_json_csv_out
+from csv_transformer import transform, TransformationJsonParser, \
+    parse_json_csv_out
 
 FIXTURE_PATH = Path(__file__).parent / "fixture"
 
@@ -58,7 +59,7 @@ class CSVTransformerTestCase(unittest.TestCase):
                   "skipinitialspace": True}
         csv_out = {"path": csv_out_path}
         transformation_dict = transformation_dict
-        main(csv_in, transformation_dict, csv_out)
+        transform(transformation_dict, csv_in, csv_out)
         ret = csv_out_file.getvalue()
         return ret
 
@@ -74,7 +75,7 @@ class CSVTransformerTestCase(unittest.TestCase):
         csv_in = {"encoding": "utf-8", "path": csv_in_path}
         csv_out = {"path": csv_out_path}
         transformation_dict = transformation_dict
-        main(csv_in, transformation_dict, csv_out, True)
+        transform(transformation_dict, csv_in, csv_out, True)
         self.assertEqual(csv_out_string, csv_out_file.getvalue())
 
 
@@ -571,10 +572,10 @@ class CSVTransformerParserTestCase(unittest.TestCase):
 
 class CSVTransformerIntegrationTestCase(unittest.TestCase):
     def test_transform1(self):
-        csv_in = {"encoding": "utf-8", "path": (
-                FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")}
-        csv_out = {"path": FIXTURE_PATH / "test.csv"}
         transformation_dict = {
+            "csv_in": {"encoding": "utf-8", "path": (
+                    FIXTURE_PATH / "StockEtablissementLiensSuccession_utf8.csv")},
+            "csv_out": {"path": FIXTURE_PATH / "test.csv"},
             "entity_filter": "date_lien_succ > date('2000-01-01')",
             "default_col": {"visible": False},
             "cols": {
@@ -591,7 +592,7 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
                 },
             }
         }
-        main(csv_in, transformation_dict, csv_out)
+        transform(transformation_dict)
 
     def test_transform2(self):
         csv_in = {"encoding": "latin-1", "path": (
@@ -638,7 +639,7 @@ class CSVTransformerIntegrationTestCase(unittest.TestCase):
                 },
             }
         }
-        main(csv_in, transformation_dict, csv_out)
+        transform(transformation_dict, csv_in, csv_out)
 
 
 class DefaultColumnTransformationTestCase(unittest.TestCase):
@@ -653,7 +654,8 @@ class NewColumnDefinitionTestCase(unittest.TestCase):
             False, "it", FUNC_BY_TYPE, FUNC_BY_AGG, BINOP_BY_NAME,
             PREFIX_UNOP_BY_NAME, INFIX_UNOP_BY_NAME)
         df = NewColumnDefinitionBuilder(builder, None).build("id", True, "f",
-                                                             "f", "f", "name", None)
+                                                             "f", "f", "name",
+                                                             None)
         self.assertEqual("name", df.name())
 
 

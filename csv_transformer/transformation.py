@@ -333,6 +333,7 @@ class Transformation:
 
         return aux
 
+
 class EntityFilterParser:
     _logger = logging.getLogger(__name__)
 
